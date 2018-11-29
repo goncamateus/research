@@ -1,0 +1,5 @@
+dqn-mario/
+*.txt
+log/
+__pycache__/
+formations-dt/
