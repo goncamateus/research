@@ -4,6 +4,11 @@
 
     > Using HFO enviroment (https://github.com/LARG/HFO)
     >
+    > * Run with
+    >  ```shell
+    >  ./HFO.sh [num_of_trials]
+    >  #Check what is in this file
+    >  ```
     > * Just Training, not testing yet
     > * Training uses Deep Q Learning with GPU
     >   * to set CPU comment the line with: **"hfo_dqn.to(device)"**
