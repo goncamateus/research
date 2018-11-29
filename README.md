@@ -7,6 +7,7 @@
     > * Just Training, not testing yet
     > * Training uses Deep Q Learning with GPU
     >   * to set CPU comment the line with: **"hfo_dqn.to(device)"**
+    > * You need to copy your **"formation-dt"** folder to **"."**
 * Tom_DQN.py (https://github.com/tomgrek/RL-montyhall)
     > * Using OPENAI GYM enviroment
     > * Accept any GYM RAM enviroment 
