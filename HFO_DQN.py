@@ -70,12 +70,8 @@ class DQN(nn.Module):
             state = Variable(torch.FloatTensor(state).unsqueeze(0))
             q_value = self.forward(state)
             action = q_value.max(1)[1]
-            if action > 4:
-                action = 4
         else:
             action = random.randrange(self.num_actions)
-            if action > 4:
-                action = 4
         return action
 
     def epsilon_by_frame(self, frame_idx): return self.epsilon_final + (self.epsilon_start -

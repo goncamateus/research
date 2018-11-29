@@ -6,10 +6,10 @@
     >
     > * Run with
     >  ```shell
-    >  ./HFO.sh [num_of_trials]
+    >  ./HFO.sh [defense_team] [num_opps]
     >  #Check what is in this file
+    >  #It's running for 2560 trials. Change that on file
     >  ```
-    > * Just Training, not testing yet
     > * Training uses Deep Q Learning with GPU
     >   * to set CPU comment the line with: **"hfo_dqn.to(device)"**
     > * You need to copy your **"formation-dt"** folder to **"."**

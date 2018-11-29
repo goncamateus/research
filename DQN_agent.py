@@ -9,6 +9,7 @@ import random
 
 import matplotlib.pyplot as plt
 import numpy as np
+import tqdm
 
 from HFO_DQN import *
 
@@ -180,6 +181,8 @@ def main():
                         reward = -rewards[action]/15
                     elif action != 0:
                         reward = rewards[action]
+                        if next_state[0] < state[0]:
+                            reward -= 50
                     else:
                         reward = 0
             hfo_dqn.replay_buffer.push(
