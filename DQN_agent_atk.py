@@ -110,12 +110,13 @@ def main():
 
 
 # ----------------------------------------------------GOT PARAMS----------------------------------------------------
-    actions = [hfo.SHOOT, hfo.PASS, hfo.DRIBBLE, hfo.GO_TO_BALL, hfo.NOOP]
-    rewards = [1000, 700, 450, 300, 10]
+    actions = [hfo.SHOOT, hfo.PASS, hfo.DRIBBLE]
+    rewards = [1000, 700, 450]
     device = torch.device("cuda:0")
-    hfo_dqn = DQN(13 + 3*num_teammates, len(actions), epsilon)
-    saved_mem = 'SAVED_MEMORY.mem'
-    saved_model = 'SAVED_MODEL.pt'
+    hfo_dqn = DQN(12 + 3*num_opponents + 6 *
+                  num_teammates, len(actions), epsilon)
+    saved_mem = 'SAVED_MEMORY_atk_{}_{}.mem'.format(num_teammates,num_opponents)
+    saved_model = 'SAVED_MODEL_atk_{}_{}.pt'.format(num_teammates,num_opponents)
     if saved_model in os.listdir('.'):
         hfo_dqn.load_state_dict(torch.load(saved_model))
     if saved_mem in os.listdir('.'):
@@ -137,13 +138,12 @@ def main():
         frames = 1
         while status == hfo.IN_GAME:
             state = hfo_env.getState()
-            dqn_state = np.append(state[:10+3*num_teammates+1], state[-2:])
-            action = 4
+            action = 2
             if int(state[5]) == 1:  # state[5] is 1 when player has the ball
                 # Where the magic happens
                 epsilon = hfo_dqn.epsilon_by_frame(frames)
                 frames += 1
-                action = hfo_dqn.act(dqn_state, epsilon)
+                action = hfo_dqn.act(state, epsilon)
                 if action == 1:
                     num_had_ball += 1
                     goal_op_angle = float(state[8])
@@ -169,9 +169,7 @@ def main():
             else:
                 done = 0
             next_state = hfo_env.getState()
-            dqn_next_state = np.append(
-                next_state[:10+3*num_teammates+1], next_state[-2:])
-            assert action < 5 and action >= 0, 'action = {}'.format(action)
+            assert action < 3 and action >= 0, 'action = {}'.format(action)
             reward = 0
             if int(next_state[5]) == 1:
                 if status == hfo.GOAL:
@@ -186,7 +184,7 @@ def main():
                     else:
                         reward = 0
             hfo_dqn.replay_buffer.push(
-                dqn_state, action, reward, dqn_next_state, done)
+                state, action, reward, next_state, done)
             if len(hfo_dqn.replay_buffer) > hfo_dqn.batch_size:
                 loss = compute_td_loss(hfo_dqn.batch_size, hfo_dqn)
                 losses.append(loss.item())
