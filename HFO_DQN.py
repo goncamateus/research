@@ -42,16 +42,13 @@ class DQN(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 128),
             nn.ReLU(),
-            nn.Linear(128, 256),
+            nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.ReLU(),
-            nn.Linear(256, num_actions)
+            nn.Linear(128, num_actions)
         )
         self.num_actions = num_actions
         self.optimizer = optim.Adam(self.parameters())
         self.batch_size = 512
-        # 2 possible actions each round, batch_size rounds per batch
         self.replay_buffer = ReplayBuffer(num_actions * self.batch_size)
         self.gamma = 0.99
         self.epsilon_start = epsilon_start

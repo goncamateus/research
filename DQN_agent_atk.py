@@ -111,12 +111,11 @@ def main():
 
 # ----------------------------------------------------GOT PARAMS----------------------------------------------------
     actions = [hfo.SHOOT, hfo.PASS, hfo.DRIBBLE]
-    rewards = [1000, 700, 450]
+    rewards = [3, 5, 7]
     device = torch.device("cuda:0")
-    hfo_dqn = DQN(12 + 3*num_opponents + 6 *
-                  num_teammates, len(actions), epsilon)
-    saved_mem = 'SAVED_MEMORY_atk_{}_{}.mem'.format(num_teammates,num_opponents)
-    saved_model = 'SAVED_MODEL_atk_{}_{}.pt'.format(num_teammates,num_opponents)
+    hfo_dqn = DQN(hfo_env.getStateSize(), len(actions), epsilon)
+    saved_mem = 'SAVED_MEMORY_{}def_{}_{}.mem'.format(hfo_env.getUnum(),num_teammates,num_opponents)
+    saved_model = 'SAVED_MODEL_{}def_{}_{}.pt'.format(hfo_env.getUnum(),num_teammates,num_opponents)
     if saved_model in os.listdir('.'):
         hfo_dqn.load_state_dict(torch.load(saved_model))
     if saved_mem in os.listdir('.'):
@@ -171,10 +170,10 @@ def main():
             next_state = hfo_env.getState()
             assert action < 3 and action >= 0, 'action = {}'.format(action)
             reward = 0
-            if int(next_state[5]) == 1:
-                if status == hfo.GOAL:
-                    reward = 1000
-                else:
+            if status == hfo.GOAL:
+                reward = 1000
+            else:
+                if int(next_state[5]) != 1:
                     if done:
                         reward = -rewards[action]/15
                     elif action != 0:
