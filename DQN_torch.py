@@ -81,7 +81,6 @@ def get_screen():
     # Strip off the top and bottom of the screen
     screen_width = screen[0].shape[1]
     screen = screen[:, 160:screen[0].shape[1]-160]
-    print(screen)
 
     view_width = 320
     cart_location = get_cart_location(screen_width)
