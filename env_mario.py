@@ -24,7 +24,7 @@ done = True
 for step in range(5000):
     if done:
         state = env.reset()
-    state, reward, done, info = env.step(env.action_space.sample())
+    next_state, reward, done, info = env.step(env.action_space.sample())
     screen = env.render(mode='rgb_array').transpose(
         (2, 0, 1))
     screen_width = screen[1].shape[1]
