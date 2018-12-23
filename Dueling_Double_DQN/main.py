@@ -585,8 +585,6 @@ write_op = tf.summary.merge_all()
 This function will do the part
 With ϵ select a random action atat, otherwise select at=argmaxaQ(st,a)
 """
-
-
 def predict_action(explore_start, explore_stop, decay_rate, decay_step, state, actions):
     # EPSILON GREEDY STRATEGY
     # Choose action a from state s using epsilon greedy.
@@ -662,7 +660,6 @@ if training == True:
             # Make a new episode and observe the first state
             state = env.reset()
             ori_state = state
-            # state = env.render(mode='rgb_array')
 
             # Remember that stack frame function also call our preprocess function.
             state, stacked_frames = stack_frames(stacked_frames, state, True)
@@ -713,9 +710,6 @@ if training == True:
                     break
 
                 else:
-                    # Get the next state
-                    # next_state = env.render(mode='rgb_array')
-
                     # Stack the frame of the next_state
                     next_state, stacked_frames = stack_frames(
                         stacked_frames, next_state, False)
