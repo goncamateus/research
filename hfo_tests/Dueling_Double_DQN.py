@@ -217,7 +217,7 @@ class DDDQNNet_MLP:
 
             # We create the placeholders
             # *state_size means that we take each elements of state_size in tuple hence is like if we wrote
-            # [None, 160, 4]
+            # [None, x, 4]
             self.inputs_ = tf.placeholder(
                 tf.float32, [None, *state_size], name="inputs")
 
@@ -541,11 +541,10 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
                 n * sampling_probabilities, -self.PER_b) / max_weight
 
             b_idx[i] = index
-
             experience = [data]
-
+            
             memory_b.append(experience)
-
+        
         return b_idx, memory_b, b_ISWeights
 
     """

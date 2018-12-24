@@ -55,13 +55,13 @@ pretrain_length = 100000
 memory_size = 100000       # Number of experiences the Memory can keep
 
 # MODIFY THIS TO FALSE IF YOU JUST WANT TO SEE THE TRAINED AGENT
-training = False
+training = True
 
 # Generate memory
 gen_mem = False
 
 # To render the enviroment
-render = True
+render = False
 
 
 """
@@ -726,6 +726,7 @@ if training == True:
                 tree_idx, batch, ISWeights_mb = memory.sample(batch_size)
 
                 states_mb = np.array([each[0][0] for each in batch], ndmin=3)
+                print(states_mb.shape)
                 actions_mb = np.array([each[0][1] for each in batch])
                 rewards_mb = np.array([each[0][2] for each in batch])
                 next_states_mb = np.array([each[0][3]

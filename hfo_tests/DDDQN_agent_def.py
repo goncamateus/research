@@ -88,13 +88,12 @@ def main():
         print("Using epsilon {0:n}".format(args.epsilon))
         epsilon = args.epsilon
 
-    gen_mem = args.genmem
-
+    gen_mem = int(args.genmem)
 # ----------------------------------------------------GOT PARAMS------------------------------------------------
     actions = [hfo.MOVE, hfo.GO_TO_BALL]
     rewards = [400, 1000]
     parametros = Params(hfo_env.getStateSize(),
-                        len(actions), training=args.train)
+                        len(actions), training=int(args.train))
     # Reset the graph
     tf.reset_default_graph()
 
@@ -108,11 +107,9 @@ def main():
                 done = True
                 while status == hfo.IN_GAME:
                     state = hfo_env.getState()
-                    frame = state
                     if done:
                         frame, parametros.stacked_frames = stack_frames(
-                            parametros.stacked_frames, frame, True, frame.shape, len(actions))
-
+                            parametros.stacked_frames, state, True, state.shape, len(actions))
                     if get_ball_dist(state) < 15:
                         action = random.randrange(0, 2)
                         hfo_env.act(actions[action])
@@ -126,7 +123,6 @@ def main():
                     else:
                         done = 0
                     next_state = hfo_env.getState()
-                    next_frame = next_state
                     # -----------------------------
                     reward = 0
                     if status == hfo.GOAL:
@@ -151,12 +147,12 @@ def main():
                     else:
                         # Get the next state
                         next_frame, parametros.stacked_frames = stack_frames(
-                            parametros.stacked_frames, next_frame, False, frame.shape, len(actions))
+                            parametros.stacked_frames, next_state, False, state.shape, len(actions))
 
                         # Add experience to mem
                         experience = frame, action, reward, next_frame, done
                         memory.store(experience)
-
+                        frame = next_frame
                 # Quit if the server goes down
                 if status == hfo.SERVER_DOWN:
                     print('Saving memory')
@@ -192,7 +188,8 @@ def main():
                         # Load the model
                         saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
                             hfo_env.getUnum(), num_teammates, num_opponents))
-                    sess.run(tf.global_variables_initializer())
+                    else:
+                        sess.run(tf.global_variables_initializer())
                     # Initialize the decay rate (that will use to reduce epsilon)
                     decay_step = 0
 
@@ -201,17 +198,18 @@ def main():
                     # Update the parameters of our TargetNetwork with DQN_weights
                     update_target = update_target_graph()
                     sess.run(update_target)
+                    nmr_out = 0
+                    taken = 0
                     for episode in itertools.count():
                         status = hfo.IN_GAME
                         done = True
                         while status == hfo.IN_GAME:
                             state = hfo_env.getState()
-                            frame = state
                             if done:
                                 # Initialize the rewards of the episode
                                 episode_rewards = []
                                 frame, parametros.stacked_frames = stack_frames(
-                                    parametros.stacked_frames, frame, True, frame.shape, len(actions))
+                                    parametros.stacked_frames, state, True, state.shape, len(actions))
 
                             # Increase the C step
                             tau += 1
@@ -224,10 +222,11 @@ def main():
                                                                          parametros.explore_start, parametros.explore_stop, parametros.decay_rate,
                                                                          decay_step, frame, parametros.possible_actions)
 
-                            if get_ball_dist(state) < 15:
+                            if get_ball_dist(state) < 20:
                                 hfo_env.act(actions[action.index(1)])
                             else:
-                                action = np.array([0, 1])
+                                act = 0
+                                action = np.array([1, 0])
                                 hfo_env.act(actions[0])
                             # ------------------------------
                             status = hfo_env.step()
@@ -236,18 +235,25 @@ def main():
                             else:
                                 done = 0
                             next_state = hfo_env.getState()
-                            next_frame = next_state
                             # -----------------------------
-                            act = action.index(1)
                             reward = 0
                             if status == hfo.GOAL:
-                                reward = -1000
-                            elif '-1' in hfo_env.statusToString(status) \
-                                    or 'OUT' in hfo_env.statusToString(status):
+                                reward = -20000
+                            elif '-1' in hfo_env.statusToString(status):
+                                reward = rewards[act]/4
+                            elif 'OUT' in hfo_env.statusToString(status):
+                                nmr_out += 1
                                 reward = rewards[act]/2
+                                if nmr_out % 20 and nmr_out > 1:
+                                    reward = reward*10
                             else:
                                 if done:
                                     reward = rewards[act]
+                                    if '-2' in hfo_env.statusToString(status):
+                                        taken += 1
+                                        reward = rewards[act]*2
+                                        if taken % 5 and taken > 1:
+                                            reward = reward*20
                                 else:
                                     reward = rewards[act] - next_state[0]*43*3
                             episode_rewards.append(reward)
@@ -265,25 +271,23 @@ def main():
                             else:
                                 # Get the next state
                                 next_frame, parametros.stacked_frames = stack_frames(
-                                    parametros.stacked_frames, next_frame, False, frame.shape, len(actions))
+                                    parametros.stacked_frames, next_state, False, state.shape, len(actions))
 
                                 # Add experience to mem
                                 experience = frame, action, reward, next_frame, done
                                 memory.store(experience)
+                                frame = next_frame
+
 
                             # LEARNING PART
                             # Obtain random mini-batch from memory
                             tree_idx, batch, ISWeights_mb = memory.sample(
                                 parametros.batch_size)
-
-                            states_mb = np.array([each[0][0]
-                                                  for each in batch], ndmin=3)
-                            actions_mb = np.array(
-                                [each[0][1] for each in batch])
-                            rewards_mb = np.array(
-                                [each[0][2] for each in batch])
+                            states_mb = np.array([each[0][0] for each in batch], ndmin=2)
+                            actions_mb = np.array([each[0][1] for each in batch])
+                            rewards_mb = np.array([each[0][2] for each in batch])
                             next_states_mb = np.array([each[0][3]
-                                                       for each in batch], ndmin=3)
+                                                    for each in batch], ndmin=2)
                             dones_mb = np.array([each[0][4] for each in batch])
 
                             target_Qs_batch = []
@@ -339,6 +343,10 @@ def main():
                                 sess.run(update_target)
                                 tau = 0
                                 print("Model updated")
+                        if episode%5 ==0:
+                            save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
+                            hfo_env.getUnum(), num_teammates, num_opponents))
+                            print("Model Saved")
                         #------------------------------------------------------- DOWN
                         # Quit if the server goes down
                         if status == hfo.SERVER_DOWN:
@@ -351,7 +359,96 @@ def main():
                             print("Model Saved")
                             hfo_env.act(hfo.QUIT)
                             exit()
+            # # WHEN TESTING
+            else:
+                with tf.Session() as sess:
 
+                    # Load the model
+                    saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
+                            hfo_env.getUnum(), num_teammates, num_opponents))
+
+                    for episode in itertools.count():
+                        status = hfo.IN_GAME
+                        done = True
+                        while status == hfo.IN_GAME:
+                            state = hfo_env.getState()
+                            if done:
+                                # Initialize the rewards of the episode
+                                episode_rewards = []
+                                frame, parametros.stacked_frames = stack_frames(
+                                    parametros.stacked_frames, state, True, state.shape, len(actions))
+
+                            # EPSILON GREEDY STRATEGY
+                            # Choose action a from state s using epsilon greedy.
+                            # First we randomize a number
+                            exp_exp_tradeoff = np.random.rand()
+
+                            explore_probability = 0.01
+
+                            if (explore_probability > exp_exp_tradeoff):
+                                # Make a random action (exploration)
+                                action = random.choice(parametros.possible_actions)
+
+                            else:
+                                # Get action from Q-network (exploitation)
+                                # Estimate the Qs values state
+                                Qs = sess.run(DQNetwork.output, feed_dict={
+                                            DQNetwork.inputs_: frame.reshape((1, *frame.shape))})
+
+                                # Take the biggest Q value (= the best action)
+                                act = np.argmax(Qs)
+                                action = parametros.possible_actions[int(act)]
+                            if get_ball_dist(state) < 20:
+                                hfo_env.act(actions[action.index(1)])
+                            else:
+                                act = 0
+                                action = np.array([1, 0])
+                                hfo_env.act(actions[0])
+                            # ------------------------------
+                            status = hfo_env.step()
+                            if status != hfo.IN_GAME:
+                                done = 1
+                            else:
+                                done = 0
+                            next_state = hfo_env.getState()
+                            # -----------------------------
+                            reward = 0
+                            if status == hfo.GOAL:
+                                reward = -20000
+                            elif '-1' in hfo_env.statusToString(status):
+                                reward = rewards[act]/4
+                            elif 'OUT' in hfo_env.statusToString(status):
+                                reward = rewards[act]/2
+                            else:
+                                if done:
+                                    reward = rewards[act]
+                                    if '-2' in hfo_env.statusToString(status):
+                                        reward = rewards[act]*2
+                                else:
+                                    reward = rewards[act] - next_state[0]*43*3
+                            if done:
+                                # We finished the episode
+                                next_frame = np.zeros(frame.shape)
+                                experience = frame, action, reward, next_frame, done
+                                memory.store(experience)
+                            else:
+                                # Get the next state
+                                next_frame, parametros.stacked_frames = stack_frames(
+                                    parametros.stacked_frames, next_state, False, state.shape, len(actions))
+
+                                # Add experience to mem
+                                experience = frame, action, reward, next_frame, done
+                                memory.store(experience)
+                                frame = next_frame
+                        #------------------------------------------------------- DOWN
+                        # Quit if the server goes down
+                        if status == hfo.SERVER_DOWN:
+                            print('Saving memory')
+                            with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'wb') as f:
+                                pickle.dump(memory, f)
+                                f.close()
+                            hfo_env.act(hfo.QUIT)
+                            exit()
         except KeyboardInterrupt:
             print('Saving memory')
             with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'wb') as f:
