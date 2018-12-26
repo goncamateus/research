@@ -11,6 +11,7 @@ import random
 import numpy as np
 # import matplotlib.pyplot as plt
 from scipy.spatial import distance
+from hfo_utils import remake_state
 
 import tensorflow as tf  # Deep Learning library
 from Dueling_Double_DQN import *
@@ -22,13 +23,9 @@ except ImportError:
           ' run: \"pip install .\"')
     exit()
 
-params = {'SHT_DST': 0.136664020547, 'SHT_ANG': -0.747394386098,
-          'PASS_ANG': 0.464086704478, 'DRIB_DST': -0.999052871962}
-
-
 def get_ball_dist(state):
-    agent = (state[0]*43, state[1]*43)
-    ball = (state[3]*43, state[4]*43)
+    agent = (state[0], state[1])
+    ball = (state[3], state[4])
     return distance.euclidean(agent, ball)
 
 
@@ -107,10 +104,11 @@ def main():
                 done = True
                 while status == hfo.IN_GAME:
                     state = hfo_env.getState()
+                    state = remake_state(state, num_teammates, num_opponents, is_offensive=False)
                     if done:
                         frame, parametros.stacked_frames = stack_frames(
                             parametros.stacked_frames, state, True, state.shape, len(actions))
-                    if get_ball_dist(state) < 15:
+                    if get_ball_dist(state) < 20:
                         action = random.randrange(0, 2)
                         hfo_env.act(actions[action])
                     else:
@@ -123,6 +121,7 @@ def main():
                     else:
                         done = 0
                     next_state = hfo_env.getState()
+                    next_state = remake_state(next_state, num_teammates, num_opponents, is_offensive=False)
                     # -----------------------------
                     reward = 0
                     if status == hfo.GOAL:
@@ -135,7 +134,7 @@ def main():
                         if done:
                             reward = rewards[action]
                         else:
-                            reward = rewards[action] - next_state[0]*43*3
+                            reward = rewards[action] - next_state[3]*3
                     p = [0 for x in range(len(actions))]
                     p[action] = 1
                     action = np.array(p)
@@ -205,6 +204,7 @@ def main():
                         done = True
                         while status == hfo.IN_GAME:
                             state = hfo_env.getState()
+                            state = remake_state(state, num_teammates, num_opponents, is_offensive=False)
                             if done:
                                 # Initialize the rewards of the episode
                                 episode_rewards = []
@@ -235,6 +235,7 @@ def main():
                             else:
                                 done = 0
                             next_state = hfo_env.getState()
+                            next_state = remake_state(next_state, num_teammates, num_opponents, is_offensive=False)
                             # -----------------------------
                             reward = 0
                             if status == hfo.GOAL:
@@ -255,7 +256,7 @@ def main():
                                         if taken % 5 and taken > 1:
                                             reward = reward*20
                                 else:
-                                    reward = rewards[act] - next_state[0]*43*3
+                                    reward = rewards[act] - next_state[3]*3
                             episode_rewards.append(reward)
                             if done:
                                 # Get the total reward of the episode
@@ -278,16 +279,18 @@ def main():
                                 memory.store(experience)
                                 frame = next_frame
 
-
                             # LEARNING PART
                             # Obtain random mini-batch from memory
                             tree_idx, batch, ISWeights_mb = memory.sample(
                                 parametros.batch_size)
-                            states_mb = np.array([each[0][0] for each in batch], ndmin=2)
-                            actions_mb = np.array([each[0][1] for each in batch])
-                            rewards_mb = np.array([each[0][2] for each in batch])
+                            states_mb = np.array([each[0][0]
+                                                  for each in batch], ndmin=2)
+                            actions_mb = np.array(
+                                [each[0][1] for each in batch])
+                            rewards_mb = np.array(
+                                [each[0][2] for each in batch])
                             next_states_mb = np.array([each[0][3]
-                                                    for each in batch], ndmin=2)
+                                                       for each in batch], ndmin=2)
                             dones_mb = np.array([each[0][4] for each in batch])
 
                             target_Qs_batch = []
@@ -343,9 +346,9 @@ def main():
                                 sess.run(update_target)
                                 tau = 0
                                 print("Model updated")
-                        if episode%5 ==0:
+                        if episode % 5 == 0:
                             save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
-                            hfo_env.getUnum(), num_teammates, num_opponents))
+                                hfo_env.getUnum(), num_teammates, num_opponents))
                             print("Model Saved")
                         #------------------------------------------------------- DOWN
                         # Quit if the server goes down
@@ -365,7 +368,7 @@ def main():
 
                     # Load the model
                     saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
-                            hfo_env.getUnum(), num_teammates, num_opponents))
+                        hfo_env.getUnum(), num_teammates, num_opponents))
 
                     for episode in itertools.count():
                         status = hfo.IN_GAME
@@ -387,13 +390,14 @@ def main():
 
                             if (explore_probability > exp_exp_tradeoff):
                                 # Make a random action (exploration)
-                                action = random.choice(parametros.possible_actions)
+                                action = random.choice(
+                                    parametros.possible_actions)
 
                             else:
                                 # Get action from Q-network (exploitation)
                                 # Estimate the Qs values state
                                 Qs = sess.run(DQNetwork.output, feed_dict={
-                                            DQNetwork.inputs_: frame.reshape((1, *frame.shape))})
+                                    DQNetwork.inputs_: frame.reshape((1, *frame.shape))})
 
                                 # Take the biggest Q value (= the best action)
                                 act = np.argmax(Qs)
@@ -425,7 +429,7 @@ def main():
                                     if '-2' in hfo_env.statusToString(status):
                                         reward = rewards[act]*2
                                 else:
-                                    reward = rewards[act] - next_state[0]*43*3
+                                    reward = rewards[act] - next_state[3]*3
                             if done:
                                 # We finished the episode
                                 next_frame = np.zeros(frame.shape)
