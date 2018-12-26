@@ -9,12 +9,12 @@ import pickle
 import random
 
 import numpy as np
+import tensorflow as tf  # Deep Learning library
 # import matplotlib.pyplot as plt
 from scipy.spatial import distance
-from hfo_utils import remake_state
 
-import tensorflow as tf  # Deep Learning library
-from Dueling_Double_DQN import *
+from .Dueling_Double_DQN import *
+from .hfo_utils import remake_state
 
 try:
     import hfo
