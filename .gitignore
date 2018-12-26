@@ -2,7 +2,6 @@ dqn-mario/
 *.txt
 log/
 __pycache__/
-formations-dt/
 noreward-rl/
 *.pt
 *.mem
