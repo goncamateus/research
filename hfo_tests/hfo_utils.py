@@ -42,45 +42,45 @@ def remake_state(state, num_mates, num_ops, is_offensive):
     if num_ops > 0:
         state[9] = unnormalize(state[9], 0, max_R)
     else:
-        state[9] = None
+        state[9] = -1000
     for i in range(10, 10+num_mates):
         if state[i] != -2:
             state[i] = unnormalize(state[i], 0, pi)
         else:
-            state[i] = None
+            state[i] = -1000
     for i in range(10 + num_mates, 10 + 2*num_mates):
         if state[i] != -2:
             state[i] = unnormalize(state[i], 0, max_R)
         else:
-            state[i] = None
+            state[i] = -1000
     for i in range(10 + 2*num_mates, 10 + 3*num_mates):
         if state[i] != -2:
             state[i] = unnormalize(state[i], 0, pi)
         else:
-            state[i] = None
+            state[i] = -1000
     index = 10 + 3*num_mates
     for i in range(num_mates):
         if state[index] != -2:
             state[index] = abs_x(state[index], is_offensive)
         else:
-            state[index] = None
+            state[index] = -1000
         index += 1
         if state[index] != -2:
             state[index] = abs_y(state[index])
         else:
-            state[index] = None
+            state[index] = -1000
         index += 2
     index = 10 + 6*num_mates
     for i in range(num_ops):
         if state[index] != -2:
             state[index] = abs_x(state[index], is_offensive)
         else:
-            state[index] = None
+            state[index] = -1000
         index += 1
         if state[index] != -2:
             state[index] = abs_y(state[index])
         else:
-            state[index] = None
+            state[index] = -1000
         index += 2
     state[-1] = unnormalize(state[-1], 0, stamina_max)
     return state
