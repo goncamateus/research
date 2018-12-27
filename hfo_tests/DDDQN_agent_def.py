@@ -13,8 +13,10 @@ import tensorflow as tf  # Deep Learning library
 # import matplotlib.pyplot as plt
 from scipy.spatial import distance
 
-from .Dueling_Double_DQN import *
-from .hfo_utils import remake_state
+from Dueling_Double_DQN import (DDDQNNet_MLP, Memory, Params, SumTree,
+                                predict_action, stack_frames,
+                                update_target_graph)
+from hfo_utils import remake_state
 
 try:
     import hfo
@@ -23,6 +25,7 @@ except ImportError:
           ' run: \"pip install .\"')
     exit()
 
+
 def get_ball_dist(state):
     agent = (state[0], state[1])
     ball = (state[3], state[4])
@@ -30,14 +33,6 @@ def get_ball_dist(state):
 
 
 def main():
-    mates = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    memory = [Memory(100000) for x in os.listdir('./memories')]
-    for i, x in enumerate(os.listdir('./memories')):
-        x = './memories/' + x
-        with open(x, 'rb') as f:
-            unpickler = pickle.Unpickler(f)
-            memory[i] = unpickler.load()
-            f.close()
     # ----------------------------------------------------CONECTION TO SERVER-----------------------------------------
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=6000, help="Server port")
@@ -67,12 +62,14 @@ def main():
                                 './formations-dt', args.port,
                                 'localhost', 'base_right', play_goalie=False)
 # ----------------------------------------------------CONECTION TO SERVER-----------------------------------------
-    try:
-        memory = memory[mates.index(hfo_env.getUnum())]
-    except:
-        memory = Memory(100000)
     num_teammates = hfo_env.getNumTeammates()
     num_opponents = hfo_env.getNumOpponents()
+    if 'memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents) in os.listdir('./memories'):
+        with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'rb') as memfile:
+            memory = pickle.load(memfile)
+            memfile.close()
+    else:
+        memory = Memory(100000)
     if args.seed:
         if (args.rand_pass and (num_teammates > 1)) or (args.epsilon > 0):
             print("Python randomization seed: {0:d}".format(args.seed))
@@ -104,7 +101,8 @@ def main():
                 done = True
                 while status == hfo.IN_GAME:
                     state = hfo_env.getState()
-                    state = remake_state(state, num_teammates, num_opponents, is_offensive=False)
+                    state = remake_state(
+                        state, num_teammates, num_opponents, is_offensive=False)
                     if done:
                         frame, parametros.stacked_frames = stack_frames(
                             parametros.stacked_frames, state, True, state.shape, len(actions))
@@ -121,7 +119,8 @@ def main():
                     else:
                         done = 0
                     next_state = hfo_env.getState()
-                    next_state = remake_state(next_state, num_teammates, num_opponents, is_offensive=False)
+                    next_state = remake_state(
+                        next_state, num_teammates, num_opponents, is_offensive=False)
                     # -----------------------------
                     reward = 0
                     if status == hfo.GOAL:
@@ -204,7 +203,8 @@ def main():
                         done = True
                         while status == hfo.IN_GAME:
                             state = hfo_env.getState()
-                            state = remake_state(state, num_teammates, num_opponents, is_offensive=False)
+                            state = remake_state(
+                                state, num_teammates, num_opponents, is_offensive=False)
                             if done:
                                 # Initialize the rewards of the episode
                                 episode_rewards = []
@@ -235,7 +235,8 @@ def main():
                             else:
                                 done = 0
                             next_state = hfo_env.getState()
-                            next_state = remake_state(next_state, num_teammates, num_opponents, is_offensive=False)
+                            next_state = remake_state(
+                                next_state, num_teammates, num_opponents, is_offensive=False)
                             # -----------------------------
                             reward = 0
                             if status == hfo.GOAL:
@@ -369,12 +370,13 @@ def main():
                     # Load the model
                     saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
                         hfo_env.getUnum(), num_teammates, num_opponents))
-
+                    episode_rewards = []
                     for episode in itertools.count():
                         status = hfo.IN_GAME
                         done = True
                         while status == hfo.IN_GAME:
                             state = hfo_env.getState()
+                            state = remake_state(state, num_teammates, num_opponents, False)
                             if done:
                                 # Initialize the rewards of the episode
                                 episode_rewards = []
@@ -415,6 +417,7 @@ def main():
                             else:
                                 done = 0
                             next_state = hfo_env.getState()
+                            next_state = remake_state(next_state, num_teammates, num_opponents, False)
                             # -----------------------------
                             reward = 0
                             if status == hfo.GOAL:
@@ -433,31 +436,21 @@ def main():
                             if done:
                                 # We finished the episode
                                 next_frame = np.zeros(frame.shape)
-                                experience = frame, action, reward, next_frame, done
-                                memory.store(experience)
+                                total_reward = np.sum(episode_rewards)
+                                print('Episode: {}'.format(episode),
+                                      'Total reward: {}'.format(total_reward))
                             else:
                                 # Get the next state
                                 next_frame, parametros.stacked_frames = stack_frames(
                                     parametros.stacked_frames, next_state, False, state.shape, len(actions))
-
-                                # Add experience to mem
-                                experience = frame, action, reward, next_frame, done
-                                memory.store(experience)
                                 frame = next_frame
+                                episode_rewards.append(reward)
                         #------------------------------------------------------- DOWN
                         # Quit if the server goes down
                         if status == hfo.SERVER_DOWN:
-                            print('Saving memory')
-                            with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'wb') as f:
-                                pickle.dump(memory, f)
-                                f.close()
                             hfo_env.act(hfo.QUIT)
                             exit()
         except KeyboardInterrupt:
-            print('Saving memory')
-            with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'wb') as f:
-                pickle.dump(memory, f)
-                f.close()
             save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
                 hfo_env.getUnum(), num_teammates, num_opponents))
             print("Model Saved")
