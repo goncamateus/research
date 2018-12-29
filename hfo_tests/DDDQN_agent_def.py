@@ -355,7 +355,7 @@ def main():
                         # Quit if the server goes down
                         if status == hfo.SERVER_DOWN:
                             epi_file = open(
-                                '{}k_training_rewards.txt'.format(parametros.total_episodes/1000), 'w')
+                                '{}k_training_rewards.txt'.format(int(parametros.total_episodes/1000)), 'w')
                             epi_file.writelines(epi_list)
                             epi_file.close()
                             print('Saving memory')
@@ -456,7 +456,7 @@ def main():
                         if status == hfo.SERVER_DOWN:
                             hfo_env.act(hfo.QUIT)
                             epi_file = open(
-                                '{}k_test_rewards.txt'.format(parametros.total_episodes/1000), 'w')
+                                '{}k_test_rewards.txt'.format(int(parametros.total_episodes/1000)), 'w')
                             epi_file.writelines(epi_list)
                             epi_file.close()
                             exit()
