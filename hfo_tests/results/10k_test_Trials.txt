@@ -1004,4 +1004,3 @@ Goals              : 104
 Defense Captured   : 527
 Balls Out of Bounds: 368
 Out of Time        : 1
-[start.py] Cleaning up server and other processes

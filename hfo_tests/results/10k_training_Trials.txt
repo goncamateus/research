@@ -10002,4 +10002,5 @@ TotalFrames = 1105625, AvgFramesPerTrial = 110.6, AvgFramesPerGoal = 96.3
 Trials             : 10000
 Goals              : 3530
 Defense Captured   : 4059
+Balls Out of Bounds: 2407
 Out of Time        : 4

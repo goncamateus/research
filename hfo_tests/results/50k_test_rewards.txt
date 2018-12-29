@@ -998,4 +998,3 @@ Episode: 996 Total reward: 78951.2780072689
 Episode: 997 Total reward: 41050.62518501282
 Episode: 998 Total reward: 42525.91555786133
 Episode: 999 Total reward: 55398.03326034546
-Episode: 1000 Total reward: 0.0
