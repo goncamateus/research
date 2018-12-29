@@ -64,12 +64,13 @@ def main():
 # ----------------------------------------------------CONECTION TO SERVER-----------------------------------------
     num_teammates = hfo_env.getNumTeammates()
     num_opponents = hfo_env.getNumOpponents()
-    if 'memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents) in os.listdir('./memories'):
+    mem_size = 1000000
+    if 'memories/memory_{}_{}vs{}_def_{}.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents, mem_size) in os.listdir('./memories'):
         with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'rb') as memfile:
             memory = pickle.load(memfile)
             memfile.close()
     else:
-        memory = Memory(100000)
+        memory = Memory(mem_size)
     if args.seed:
         if (args.rand_pass and (num_teammates > 1)) or (args.epsilon > 0):
             print("Python randomization seed: {0:d}".format(args.seed))
@@ -154,14 +155,14 @@ def main():
                 # Quit if the server goes down
                 if status == hfo.SERVER_DOWN:
                     print('Saving memory')
-                    with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'wb') as f:
+                    with open('memories/memory_{}_{}vs{}_def_{}.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents, mem_size), 'wb') as f:
                         pickle.dump(memory, f)
                         f.close()
                     hfo_env.act(hfo.QUIT)
                     exit()
     except KeyboardInterrupt:
         print('Saving memory due to Interrupt. Episodes: ', ep)
-        with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'wb') as f:
+        with open('memories/memory_{}_{}vs{}_def_{}.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents, mem_size), 'wb') as f:
             pickle.dump(memory, f)
             f.close()
 # ----------------------------------------------Generate Memory----------------------------------------------------------
@@ -176,11 +177,12 @@ def main():
         # Losses
         tf.summary.scalar("Loss", DQNetwork.loss)
         write_op = tf.summary.merge_all()
-
+        loss = None
         # Saver will help us to save our model
         saver = tf.train.Saver()
         try:
             if parametros.training:
+                epi_list = []
                 with tf.Session() as sess:
                     if "model_{}_{}vs{}_def.ckpt".format(hfo_env.getUnum(), num_teammates, num_opponents) in os.listdir('./models'):
                         # Load the model
@@ -262,10 +264,8 @@ def main():
                             if done:
                                 # Get the total reward of the episode
                                 total_reward = np.sum(episode_rewards)
-                                print('Episode: {}'.format(episode),
-                                      'Total reward: {}'.format(total_reward),
-                                      'Training loss: {:.4f}'.format(loss),
-                                      'Explore P: {:.4f}'.format(explore_probability))
+                                epi_list.append('Episode: {} Total reward: {} Training loss: {:.4f} Explore P: {:.4f}'.format(
+                                    episode, total_reward, loss, explore_probability))
                                 # We finished the episode
                                 next_frame = np.zeros(frame.shape)
                                 experience = frame, action, reward, next_frame, done
@@ -302,7 +302,7 @@ def main():
 
                             # Get Q values for next_state
                             q_next_state = sess.run(DQNetwork.output, feed_dict={
-                                                    DQNetwork.inputs_: next_states_mb})
+                                DQNetwork.inputs_: next_states_mb})
 
                             # Calculate Qtarget for all actions that state
                             q_target_next_state = sess.run(TargetNetwork.output, feed_dict={
@@ -351,11 +351,15 @@ def main():
                             save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
                                 hfo_env.getUnum(), num_teammates, num_opponents))
                             print("Model Saved")
-                        #------------------------------------------------------- DOWN
+                        # ------------------------------------------------------- DOWN
                         # Quit if the server goes down
                         if status == hfo.SERVER_DOWN:
+                            epi_file = open(
+                                '{}k_training_rewards.txt'.format(parametros.total_episodes/1000), 'w')
+                            epi_file.writelines(epi_list)
+                            epi_file.close()
                             print('Saving memory')
-                            with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'wb') as f:
+                            with open('memories/memory_{}_{}vs{}_def_{}.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents, mem_size), 'wb') as f:
                                 pickle.dump(memory, f)
                                 f.close()
                             save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
@@ -366,7 +370,7 @@ def main():
             # # WHEN TESTING
             else:
                 with tf.Session() as sess:
-
+                    epi_list = []
                     # Load the model
                     saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
                         hfo_env.getUnum(), num_teammates, num_opponents))
@@ -376,7 +380,8 @@ def main():
                         done = True
                         while status == hfo.IN_GAME:
                             state = hfo_env.getState()
-                            state = remake_state(state, num_teammates, num_opponents, False)
+                            state = remake_state(
+                                state, num_teammates, num_opponents, False)
                             if done:
                                 # Initialize the rewards of the episode
                                 episode_rewards = []
@@ -417,7 +422,8 @@ def main():
                             else:
                                 done = 0
                             next_state = hfo_env.getState()
-                            next_state = remake_state(next_state, num_teammates, num_opponents, False)
+                            next_state = remake_state(
+                                next_state, num_teammates, num_opponents, False)
                             # -----------------------------
                             reward = 0
                             if status == hfo.GOAL:
@@ -437,18 +443,22 @@ def main():
                                 # We finished the episode
                                 next_frame = np.zeros(frame.shape)
                                 total_reward = np.sum(episode_rewards)
-                                print('Episode: {}'.format(episode),
-                                      'Total reward: {}'.format(total_reward))
+                                epi_list.append('Episode: {} Total reward: {}'.format(
+                                    episode, total_reward))
                             else:
                                 # Get the next state
                                 next_frame, parametros.stacked_frames = stack_frames(
                                     parametros.stacked_frames, next_state, False, state.shape, len(actions))
                                 frame = next_frame
                                 episode_rewards.append(reward)
-                        #------------------------------------------------------- DOWN
+                        # ------------------------------------------------------- DOWN
                         # Quit if the server goes down
                         if status == hfo.SERVER_DOWN:
                             hfo_env.act(hfo.QUIT)
+                            epi_file = open(
+                                '{}k_test_rewards.txt'.format(parametros.total_episodes/1000), 'w')
+                            epi_file.writelines(epi_list)
+                            epi_file.close()
                             exit()
         except KeyboardInterrupt:
             save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(

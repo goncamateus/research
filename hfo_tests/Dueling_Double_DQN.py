@@ -17,7 +17,7 @@ class Params():
     learning_rate = 0.00025      # Alpha (aka learning rate)
 
     # TRAINING HYPERPARAMETERS
-    total_episodes = 5000         # Total episodes for training
+    total_episodes = 50000         # Total episodes for training
     max_steps = 5000              # Max possible steps in an episode
     batch_size = 64
 
@@ -35,8 +35,8 @@ class Params():
     # MEMORY HYPERPARAMETERS
     # If you have balls change to 1million
     # Number of experiences stored in the Memory when initialized for the first time
-    pretrain_length = 100000
-    memory_size = 100000       # Number of experiences the Memory can keep
+    pretrain_length = 1000000
+    memory_size = 1000000       # Number of experiences the Memory can keep
 
     # We stack 4 frames
     stack_size = 4
