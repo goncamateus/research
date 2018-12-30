@@ -2,16 +2,18 @@
 from __future__ import print_function
 
 import argparse
+import datetime
 import itertools
 import os
 import pickle
 import random
-import datetime
 
+import numpy as np
 # import matplotlib.pyplot as plt
 from scipy.spatial import distance
 
 from HFO_DQN import *
+from hfo_utils import *
 
 try:
     import hfo
@@ -26,8 +28,8 @@ params = {'SHT_DST': 0.136664020547, 'SHT_ANG': -0.747394386098,
 
 
 def get_ball_dist(state):
-    agent = (state[0]*43, state[1]*43)
-    ball = (state[3]*43, state[4]*43)
+    agent = (state[0], state[1])
+    ball = (state[3], state[4])
     return distance.euclidean(agent, ball)
 
 
@@ -43,7 +45,13 @@ def main():
                         help="If doing HFO --record")
     parser.add_argument('--rdir', type=str, default='log/',
                         help="Set directory to use if doing --record")
+    parser.add_argument('--genmem', type=str, default=1,
+                        help="generate memory to train")
+    parser.add_argument('--train', type=str, default='True',
+                        help="Train agent")
     args = parser.parse_args()
+    gen_mem = int(args.genmem)
+    training = int(args.train)
     if args.seed:
         random.seed(args.seed)
     hfo_env = hfo.HFOEnvironment()
@@ -74,7 +82,7 @@ def main():
 
 # ----------------------------------------------------GOT PARAMS----------------------------------------------------
     actions = [hfo.MOVE, hfo.GO_TO_BALL]
-    rewards = [100, 1000]
+    rewards = [400, 1000]
     device = torch.device("cuda:0")
     hfo_dqn = DQN(hfo_env.getStateSize(), len(actions), epsilon)
     saved_mem = 'SAVED_MEMORY_{}def_{}_{}.mem'.format(
@@ -93,73 +101,198 @@ def main():
     avg_loss = 0
     avg_losses = []
 # ----------------------------------------------DQN PARAMS----------------------------------------------------------
-    begin = datetime.datetime.now()
-    for episode in itertools.count():
-        status = hfo.IN_GAME
-        frames = 1
-        while status == hfo.IN_GAME:
-            state = hfo_env.getState()
-
-            train_dqn = False
-            print(get_ball_dist(state))
-            if get_ball_dist(state) < 15:
-                train_dqn = True
-                # Where the magic happens
-                epsilon = hfo_dqn.epsilon_by_frame(frames)
-                frames += 1
-                action = hfo_dqn.act(state, epsilon)
-                hfo_env.act(actions[action])
-            else:
-                hfo_env.act(actions[0])
-            status = hfo_env.step()
-            if status != hfo.IN_GAME:
-                done = 1
-            else:
-                done = 0
-            if train_dqn:
+    if gen_mem:
+        for episode in itertools.count():
+            status = hfo.IN_GAME
+            done = True
+            while status == hfo.IN_GAME:
+                state = hfo_env.getState()
+                state = remake_state(
+                    state, num_teammates, num_opponents, is_offensive=False)
+                if get_ball_dist(state) < 20:
+                    action = random.randrange(0, 2)
+                    hfo_env.act(actions[action])
+                else:
+                    action = 0
+                    hfo_env.act(actions[0])
+                # ------------------------------
+                status = hfo_env.step()
+                if status != hfo.IN_GAME:
+                    done = 1
+                else:
+                    done = 0
                 next_state = hfo_env.getState()
+                next_state = remake_state(
+                    next_state, num_teammates, num_opponents, is_offensive=False)
+                # -----------------------------
                 reward = 0
-                if int(next_state[5]) == 1:
+                if status == hfo.GOAL:
+                    reward = -1000
+                elif '-1' in hfo_env.statusToString(status):
+                    reward = rewards[action]/3
+                elif 'OUT' in hfo_env.statusToString(status):
+                    reward = rewards[action]/2
+                else:
+                    if done:
+                        reward = rewards[action]
+                    else:
+                        reward = rewards[action] - next_state[3]*3
+                # Add experience to mem
+                hfo_dqn.replay_buffer.push(
+                    state, action, reward, next_state, done)
+            # Quit if the server goes down
+            if status == hfo.SERVER_DOWN:
+                print('Saving memory')
+                with open(saved_mem, 'wb') as f:
+                    pickle.dump(hfo_dqn.replay_buffer, f)
+                    f.close()
+                hfo_env.act(hfo.QUIT)
+                exit()
+    else:
+        if training:
+            begin = datetime.datetime.now()
+            episode_rewards = []
+            epi_list = []
+            for episode in itertools.count():
+                status = hfo.IN_GAME
+                frames = 1
+                while status == hfo.IN_GAME:
+                    state = hfo_env.getState()
+                    state = remake_state(
+                        state, num_teammates, num_opponents, is_offensive=False)
+                    epsilon = hfo_dqn.epsilon_by_frame(frames)
+                    action = hfo_dqn.act(state, epsilon)
+                    if get_ball_dist(state) < 20:
+                        # Where the magic happens
+                        hfo_env.act(actions[action])
+                    else:
+                        hfo_env.act(actions[0])
+                    frames += 1
+                    # ------------------------------
+                    status = hfo_env.step()
+                    if status != hfo.IN_GAME:
+                        done = 1
+                    else:
+                        done = 0
+                    next_state = hfo_env.getState()
+                    next_state = remake_state(
+                        next_state, num_teammates, num_opponents, is_offensive=False)
+                    # -----------------------------
+                    reward = 0
                     if status == hfo.GOAL:
                         reward = -1000
                     elif '-1' in hfo_env.statusToString(status):
+                        reward = rewards[action]/3
+                    elif 'OUT' in hfo_env.statusToString(status):
                         reward = rewards[action]/2
                     else:
                         if done:
                             reward = rewards[action]
                         else:
-                            reward = rewards[action] - state[0]*43*3
-                hfo_dqn.replay_buffer.push(
-                    state, action, reward, next_state, done)
-                if len(hfo_dqn.replay_buffer) > hfo_dqn.batch_size:
+                            reward = rewards[action] - next_state[3]*3
+                    episode_rewards.append(reward)
+                    # Add experience to mem
+                    hfo_dqn.replay_buffer.push(
+                        state, action, reward, next_state, done)
                     loss = compute_td_loss(hfo_dqn.batch_size, hfo_dqn)
                     losses.append(loss.item())
                     avg_losses.append((avg_loss + loss.item())/frames)
                     avg_loss = 0
-                try:
-                    avg_loss = avg_loss + loss.item()
-                except:
-                    pass
+                    try:
+                        avg_loss = avg_loss + loss.item()
+                    except:
+                        pass
+                    if done:
+                        # Get the total reward of the episode
+                        total_reward = np.sum(episode_rewards)/frames
+                        epi_list.append('Episode: {} Total reward: {} Training loss: {:.4f}'.format(
+                            episode, total_reward, avg_loss))
+                        frames = 1
+                        episode_rewards = []
+                    if episode % 5 == 0:
+                        torch.save(hfo_dqn.state_dict(), saved_model)
 
-        # Quit if the server goes down
-        if status == hfo.SERVER_DOWN:
-            end = datetime.datetime.now()
-            delta = end - begin
-            print('End of Training: ', delta.seconds)
-            hfo_env.act(hfo.QUIT)
-            # plt.figure(figsize=(20,5))
-            # plt.plot(avg_losses)
-            # plt.show()
-            exit()
+                # Quit if the server goes down
+                if status == hfo.SERVER_DOWN:
+                    end = datetime.datetime.now()
+                    delta = end - begin
+                    epi_file = open('{}k_training_rewards.txt'.format(10), 'w')
+                    epi_file.writelines(epi_list)
+                    epi_file.close()
+                    print('End of Training: ', delta.seconds)
+                    hfo_env.act(hfo.QUIT)
+                    with open(saved_mem, 'wb') as f:
+                        pickle.dump(hfo_dqn.replay_buffer, f)
+                        f.close()
+                    torch.save(hfo_dqn.state_dict(), saved_model)
+                    exit()
 
-        # Check the outcome of the episode
-        print("Episode {0:d} ended with {1:s}".format(episode,
-                                                      hfo_env.statusToString(status)))
-        with open(saved_mem, 'wb') as f:
-            pickle.dump(hfo_dqn.replay_buffer, f)
-            f.close()
-        torch.save(hfo_dqn.state_dict(), saved_model)
-
+        else:
+            begin = datetime.datetime.now()
+            epi_list = []
+            episode_rewards = []
+            for episode in itertools.count():
+                status = hfo.IN_GAME
+                frames = 1
+                while status == hfo.IN_GAME:
+                    state = hfo_env.getState()
+                    state = remake_state(
+                        state, num_teammates, num_opponents, False)
+                    train_dqn = False
+                    if get_ball_dist(state) < 20:
+                        train_dqn = True
+                        # Where the magic happens
+                        epsilon = hfo_dqn.epsilon_by_frame(frames)
+                        action = hfo_dqn.act(state, epsilon)
+                        hfo_env.act(actions[action])
+                    else:
+                        hfo_env.act(actions[0])
+                    frames += 1
+                    # ------------------------------
+                    status = hfo_env.step()
+                    if status != hfo.IN_GAME:
+                        done = 1
+                    else:
+                        done = 0
+                    next_state = hfo_env.getState()
+                    next_state = remake_state(
+                        next_state, num_teammates, num_opponents, False)
+                    # -----------------------------
+                    reward = 0
+                    if status == hfo.GOAL:
+                        reward = -20000
+                    elif '-1' in hfo_env.statusToString(status):
+                        reward = rewards[action]/4
+                    elif 'OUT' in hfo_env.statusToString(status):
+                        reward = rewards[action]/2
+                    else:
+                        if done:
+                            reward = rewards[action]
+                            if '-2' in hfo_env.statusToString(status):
+                                reward = rewards[action]*2
+                        else:
+                            reward = rewards[action] - next_state[3]*3
+                    episode_rewards.append(reward)
+                    if done:
+                        # We finished the episode
+                        total_reward = np.sum(episode_rewards)/frames
+                        epi_list.append('Episode: {} Total reward: {}'.format(
+                            episode, total_reward))
+                        episode_rewards = []
+                        frames = 1
+                    else:
+                        episode_rewards.append(reward)
+                    # ------------------------------------------------------- DOWN
+                    # Quit if the server goes down
+                    if status == hfo.SERVER_DOWN:
+                        end = datetime.datetime.now()
+                        delta = end - begin
+                        epi_file = open('{}k_test_rewards.txt'.format(10), 'w')
+                        epi_file.writelines(epi_list)
+                        epi_file.close()
+                        print('End of Training: ', delta.seconds)
+                        hfo_env.act(hfo.QUIT)
+                        exit()
 
 
 if __name__ == '__main__':

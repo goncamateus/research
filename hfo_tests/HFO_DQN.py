@@ -48,7 +48,7 @@ class DQN(nn.Module):
         )
         self.num_actions = num_actions
         self.optimizer = optim.Adam(self.parameters())
-        self.batch_size = 512
+        self.batch_size = 64
         self.replay_buffer = ReplayBuffer(num_actions * self.batch_size)
         self.gamma = 0.99
         self.epsilon_start = epsilon_start
