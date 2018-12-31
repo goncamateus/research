@@ -246,6 +246,7 @@ def main():
                         action = hfo_dqn.act(state, epsilon)
                         hfo_env.act(actions[action])
                     else:
+                        action = 0
                         hfo_env.act(actions[0])
                     frames += 1
                     # ------------------------------
