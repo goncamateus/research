@@ -13,9 +13,8 @@ import tensorflow as tf  # Deep Learning library
 # import matplotlib.pyplot as plt
 from scipy.spatial import distance
 
-from Dueling_Double_DQN import (DDDQNNet_MLP, Memory, Params, SumTree,
-                                predict_action, stack_frames,
-                                update_target_graph)
+from DQN_PER import (DQNetwork, Memory, Params, SumTree,
+                     predict_action, stack_frames)
 from hfo_utils import remake_state
 
 try:
@@ -64,7 +63,7 @@ def main():
 # ----------------------------------------------------CONECTION TO SERVER-----------------------------------------
     num_teammates = hfo_env.getNumTeammates()
     num_opponents = hfo_env.getNumOpponents()
-    mem_size = 1000000
+    mem_size = 100000
     if 'memories/memory_{}_{}vs{}_def_{}.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents, mem_size) in os.listdir('./memories'):
         with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'rb') as memfile:
             memory = pickle.load(memfile)
@@ -168,14 +167,10 @@ def main():
 # ----------------------------------------------Generate Memory----------------------------------------------------------
     else:
         # Instantiate the DQNetwork
-        DQNetwork = DDDQNNet_MLP([hfo_env.getStateSize(), 4], parametros.action_size,
-                                 parametros.learning_rate, name="DQNetwork")
-
-        # Instantiate the target network
-        TargetNetwork = DDDQNNet_MLP([hfo_env.getStateSize(), 4], parametros.action_size,
-                                     parametros.learning_rate, name="TargetNetwork")
+        DQN = DQNetwork([hfo_env.getStateSize(), 4], parametros.action_size,
+                              parametros.learning_rate, name="DQNetwork")
         # Losses
-        tf.summary.scalar("Loss", DQNetwork.loss)
+        tf.summary.scalar("Loss", DQN.loss)
         write_op = tf.summary.merge_all()
         loss = None
         # Saver will help us to save our model
@@ -184,20 +179,14 @@ def main():
             if parametros.training:
                 epi_list = []
                 with tf.Session() as sess:
-                    if "model_{}_{}vs{}_def.ckpt".format(hfo_env.getUnum(), num_teammates, num_opponents) in os.listdir('./models'):
+                    if "DQN_PER_model_{}_{}vs{}_def.ckpt".format(hfo_env.getUnum(), num_teammates, num_opponents) in os.listdir('./models'):
                         # Load the model
-                        saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
+                        saver.restore(sess, "./models/DQN_PER_model_{}_{}vs{}_def.ckpt".format(
                             hfo_env.getUnum(), num_teammates, num_opponents))
                     else:
                         sess.run(tf.global_variables_initializer())
                     # Initialize the decay rate (that will use to reduce epsilon)
                     decay_step = 0
-
-                    # Set tau = 0
-                    tau = 0
-                    # Update the parameters of our TargetNetwork with DQN_weights
-                    update_target = update_target_graph()
-                    sess.run(update_target)
                     nmr_out = 0
                     taken = 0
                     for episode in itertools.count():
@@ -213,14 +202,11 @@ def main():
                                 frame, parametros.stacked_frames = stack_frames(
                                     parametros.stacked_frames, state, True, state.shape, len(actions))
 
-                            # Increase the C step
-                            tau += 1
-
                             # Increase decay_step
                             decay_step += 1
 
                             # With ϵ select a random action atat, otherwise select a = argmaxQ(st,a)
-                            action, explore_probability = predict_action(sess, DQNetwork,
+                            action, explore_probability = predict_action(sess, DQN,
                                                                          parametros.explore_start, parametros.explore_stop, parametros.decay_rate,
                                                                          decay_step, frame, parametros.possible_actions)
 
@@ -296,17 +282,9 @@ def main():
 
                             target_Qs_batch = []
 
-                            # DOUBLE DQN Logic
-                            # Use DQNNetwork to select the action to take at next_state (a') (action with the highest Q-value)
-                            # Use TargetNetwork to calculate the Q_val of Q(s',a')
-
                             # Get Q values for next_state
-                            q_next_state = sess.run(DQNetwork.output, feed_dict={
-                                DQNetwork.inputs_: next_states_mb})
-
-                            # Calculate Qtarget for all actions that state
-                            q_target_next_state = sess.run(TargetNetwork.output, feed_dict={
-                                TargetNetwork.inputs_: next_states_mb})
+                            q_next_state = sess.run(DQN.output, feed_dict={
+                                DQN.inputs_: next_states_mb})
 
                             # Set Q_target = r if the episode ends at s+1, otherwise set Q_target = r + gamma * Qtarget(s',a')
                             for i in range(0, len(batch)):
@@ -321,34 +299,29 @@ def main():
 
                                 else:
                                     # Take the Qtarget for action a'
-                                    target = rewards_mb[i] + parametros.gamma * \
-                                        q_target_next_state[i][action]
+                                    target = rewards_mb[i] + \
+                                        parametros.gamma * action
                                     target_Qs_batch.append(target)
 
                             targets_mb = np.array(
                                 [each for each in target_Qs_batch])
-                            _, loss, absolute_errors = sess.run([DQNetwork.optimizer, DQNetwork.loss, DQNetwork.absolute_errors],
-                                                                feed_dict={DQNetwork.inputs_: states_mb,
-                                                                           DQNetwork.target_Q: targets_mb,
-                                                                           DQNetwork.actions_: actions_mb,
-                                                                           DQNetwork.ISWeights_: ISWeights_mb})
+                            _, loss, absolute_errors = sess.run([DQN.optimizer, DQN.loss, DQN.absolute_errors],
+                                                                feed_dict={DQN.inputs_: states_mb,
+                                                                           DQN.target_Q: targets_mb,
+                                                                           DQN.actions_: actions_mb,
+                                                                           DQN.ISWeights_: ISWeights_mb})
 
                             # Update priority
                             memory.batch_update(tree_idx, absolute_errors)
 
                             # Write TF Summaries
-                            summary = sess.run(write_op, feed_dict={DQNetwork.inputs_: states_mb,
-                                                                    DQNetwork.target_Q: targets_mb,
-                                                                    DQNetwork.actions_: actions_mb,
-                                                                    DQNetwork.ISWeights_: ISWeights_mb})
-                            if tau > parametros.max_tau:
-                                # Update the parameters of our TargetNetwork with DQN_weights
-                                update_target = update_target_graph()
-                                sess.run(update_target)
-                                tau = 0
-                                print("Model updated")
+                            summary = sess.run(write_op, feed_dict={DQN.inputs_: states_mb,
+                                                                    DQN.target_Q: targets_mb,
+                                                                    DQN.actions_: actions_mb,
+                                                                    DQN.ISWeights_: ISWeights_mb})
+                                                                    
                         if episode % 5 == 0:
-                            save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
+                            save_path = saver.save(sess, "./models/DQN_PER_model_{}_{}vs{}_def.ckpt".format(
                                 hfo_env.getUnum(), num_teammates, num_opponents))
                             print("Model Saved")
                         # ------------------------------------------------------- DOWN
@@ -362,7 +335,7 @@ def main():
                             with open('memories/memory_{}_{}vs{}_def_{}.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents, mem_size), 'wb') as f:
                                 pickle.dump(memory, f)
                                 f.close()
-                            save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
+                            save_path = saver.save(sess, "./models/DQN_PER_model_{}_{}vs{}_def.ckpt".format(
                                 hfo_env.getUnum(), num_teammates, num_opponents))
                             print("Model Saved")
                             hfo_env.act(hfo.QUIT)
@@ -372,7 +345,7 @@ def main():
                 with tf.Session() as sess:
                     epi_list = []
                     # Load the model
-                    saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
+                    saver.restore(sess, "./models/DQN_PER_model_{}_{}vs{}_def.ckpt".format(
                         hfo_env.getUnum(), num_teammates, num_opponents))
                     episode_rewards = []
                     for episode in itertools.count():
@@ -403,8 +376,8 @@ def main():
                             else:
                                 # Get action from Q-network (exploitation)
                                 # Estimate the Qs values state
-                                Qs = sess.run(DQNetwork.output, feed_dict={
-                                    DQNetwork.inputs_: frame.reshape((1, *frame.shape))})
+                                Qs = sess.run(DQN.output, feed_dict={
+                                    DQN.inputs_: frame.reshape((1, *frame.shape))})
 
                                 # Take the biggest Q value (= the best action)
                                 act = np.argmax(Qs)
@@ -461,7 +434,7 @@ def main():
                             epi_file.close()
                             exit()
         except KeyboardInterrupt:
-            save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
+            save_path = saver.save(sess, "./models/DQN_PER_model_{}_{}vs{}_def.ckpt".format(
                 hfo_env.getUnum(), num_teammates, num_opponents))
             print("Model Saved")
 

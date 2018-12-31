@@ -79,226 +79,99 @@ def stack_frames(stacked_frams, frame, is_new_episode, state_shape, actions):
     return stacked_state, stacked_frams
 
 
-class DDDQNNet:
-    """CNN DQN"""
+class DQNetwork:
+    """MLP DQN"""
 
-    def __init__(self, state_size, action_size, learning_rate, name):
+    def __init__(self, state_size, action_size, learning_rate, name='DQNetwork'):
         self.state_size = state_size
         self.action_size = action_size
         self.learning_rate = learning_rate
-        self.name = name
 
-        # We use tf.variable_scope here to know which network we're using (DQN or target_net)
-        # it will be useful when we will update our w- parameters (by copy the DQN parameters)
-        with tf.variable_scope(self.name):
-
+        with tf.variable_scope(name):
             # We create the placeholders
             # *state_size means that we take each elements of state_size in tuple hence is like if we wrote
-            # [None, 160,130, 4]
+            # [None, x, 4]
             self.inputs_ = tf.placeholder(
                 tf.float32, [None, *state_size], name="inputs")
-
-            #
-            self.ISWeights_ = tf.placeholder(
-                tf.float32, [None, 1], name='IS_weights')
-
+                
             self.actions_ = tf.placeholder(
                 tf.float32, [None, action_size], name="actions_")
+
+            self.ISWeights_ = tf.placeholder(
+                tf.float32, [None, 1], name='IS_weights')
 
             # Remember that target_Q is the R(s,a) + ymax Qhat(s', a')
             self.target_Q = tf.placeholder(tf.float32, [None], name="target")
 
             """
             First convnet:
-            CNN
+            MLP
+            BatchNormalization
             ELU
             """
-            self.conv1 = tf.layers.conv2d(inputs=self.inputs_,
-                                          filters=32,
-                                          kernel_size=[8, 8],
-                                          strides=[4, 4],
-                                          padding="VALID",
-                                          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          name="conv1")
+            self.mlp1 = tf.layers.dense(inputs=self.inputs_,
+                                        units=32,
+                                        activation=tf.nn.elu,
+                                        kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                        name="mlp1")
 
-            self.conv1_out = tf.nn.elu(self.conv1, name="conv1_out")
+            self.mlp1_batchnorm = tf.layers.batch_normalization(self.mlp1,
+                                                                training=True,
+                                                                epsilon=1e-5,
+                                                                name='batch_norm1')
+
+            self.mlp1_out = tf.nn.elu(self.mlp1_batchnorm, name="mlp1_out")
 
             """
             Second convnet:
-            CNN
+            MLP
+            BatchNormalization
             ELU
             """
-            self.conv2 = tf.layers.conv2d(inputs=self.conv1_out,
-                                          filters=64,
-                                          kernel_size=[4, 4],
-                                          strides=[2, 2],
-                                          padding="VALID",
-                                          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          name="conv2")
+            self.mlp2 = tf.layers.dense(inputs=self.inputs_,
+                                        units=64,
+                                        activation=tf.nn.elu,
+                                        kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                        name="mlp2")
 
-            self.conv2_out = tf.nn.elu(self.conv2, name="conv2_out")
+            self.mlp2_batchnorm = tf.layers.batch_normalization(self.mlp2,
+                                                                training=True,
+                                                                epsilon=1e-5,
+                                                                name='batch_norm2')
+
+            self.mlp2_out = tf.nn.elu(self.mlp2_batchnorm, name="mlp2_out")
 
             """
             Third convnet:
-            CNN
-            ELU
-            """
-            self.conv3 = tf.layers.conv2d(inputs=self.conv2_out,
-                                          filters=128,
-                                          kernel_size=[4, 4],
-                                          strides=[2, 2],
-                                          padding="VALID",
-                                          kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d(),
-                                          name="conv3")
-
-            self.conv3_out = tf.nn.elu(self.conv3, name="conv3_out")
-
-            self.flatten = tf.layers.flatten(self.conv3_out)
-
-            # Here we separate into two streams
-            # The one that calculate V(s)
-            self.value_fc = tf.layers.dense(inputs=self.flatten,
-                                            units=512,
-                                            activation=tf.nn.elu,
-                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                            name="value_fc")
-
-            self.value = tf.layers.dense(inputs=self.value_fc,
-                                         units=1,
-                                         activation=None,
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                         name="value")
-
-            # The one that calculate A(s,a)
-            self.advantage_fc = tf.layers.dense(inputs=self.flatten,
-                                                units=512,
-                                                activation=tf.nn.elu,
-                                                kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                                name="advantage_fc")
-
-            self.advantage = tf.layers.dense(inputs=self.advantage_fc,
-                                             units=self.action_size,
-                                             activation=None,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="advantages")
-
-            # Agregating layer
-            # Q(s,a) = V(s) + (A(s,a) - 1/|A| * sum A(s,a'))
-            self.output = self.value + \
-                tf.subtract(self.advantage, tf.reduce_mean(
-                    self.advantage, axis=1, keepdims=True))
-
-            # Q is our predicted Q value.
-            self.Q = tf.reduce_sum(tf.multiply(
-                self.output, self.actions_), axis=1)
-
-            # The loss is modified because of PER
-            self.absolute_errors = tf.abs(
-                self.target_Q - self.Q)  # for updating Sumtree
-
-            self.loss = tf.reduce_mean(
-                self.ISWeights_ * tf.squared_difference(self.target_Q, self.Q))
-
-            self.optimizer = tf.train.RMSPropOptimizer(
-                self.learning_rate).minimize(self.loss)
-
-class DDDQNNet_MLP:
-    """MLP DQN"""
-
-    def __init__(self, state_size, action_size, learning_rate, name):
-        self.state_size = state_size
-        self.action_size = action_size
-        self.learning_rate = learning_rate
-        self.name = name
-
-        # We use tf.variable_scope here to know which network we're using (DQN or target_net)
-        # it will be useful when we will update our w- parameters (by copy the DQN parameters)
-        with tf.variable_scope(self.name):
-
-            # We create the placeholders
-            # *state_size means that we take each elements of state_size in tuple hence is like if we wrote
-            # [None, x, 4]
-            self.inputs_ = tf.placeholder(
-                tf.float32, [None, *state_size], name="inputs")
-
-            #
-            self.ISWeights_ = tf.placeholder(
-                tf.float32, [None, 1], name='IS_weights')
-
-            self.actions_ = tf.placeholder(
-                tf.float32, [None, action_size], name="actions_")
-
-            # Remember that target_Q is the R(s,a) + ymax Qhat(s', a')
-            self.target_Q = tf.placeholder(tf.float32, [None], name="target")
-
-            """
-            First net:
             MLP
+            BatchNormalization
             ELU
             """
-            self.layer1 = tf.layers.dense(inputs=self.inputs_,
-                                            units=32,
-                                            activation=tf.nn.elu,
-                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                            name="mlp1")
+            self.mlp3 = tf.layers.dense(inputs=self.inputs_,
+                                        units=128,
+                                        activation=tf.nn.elu,
+                                        kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                        name="mlp3")
 
-            """
-            Second net:
-            MLP
-            ELU
-            """
-            self.layer2 = tf.layers.dense(inputs=self.layer1,
-                                            units=64,
-                                            activation=tf.nn.elu,
-                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                            name="mlp2")
+            self.mlp3_batchnorm = tf.layers.batch_normalization(self.mlp3,
+                                                                training=True,
+                                                                epsilon=1e-5,
+                                                                name='batch_norm3')
 
-            """
-            Third net:
-            MLP
-            ELU
-            """
-            self.layer3 = tf.layers.dense(inputs=self.layer2,
-                                            units=128,
-                                            activation=tf.nn.elu,
-                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                            name="mlp3")
+            self.mlp3_out = tf.nn.elu(self.mlp3_batchnorm, name="mlp3_out")
 
+            self.flatten = tf.layers.flatten(self.mlp3_out)
 
-            self.flatten = tf.layers.flatten(self.layer3)
+            self.fc = tf.layers.dense(inputs=self.flatten,
+                                      units=512,
+                                      activation=tf.nn.elu,
+                                      kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                      name="fc1")
 
-            # Here we separate into two streams
-            # The one that calculate V(s)
-            self.value_fc = tf.layers.dense(inputs=self.flatten,
-                                            units=512,
-                                            activation=tf.nn.elu,
-                                            kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                            name="value_fc")
-
-            self.value = tf.layers.dense(inputs=self.value_fc,
-                                         units=1,
-                                         activation=None,
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                         name="value")
-
-            # The one that calculate A(s,a)
-            self.advantage_fc = tf.layers.dense(inputs=self.flatten,
-                                                units=512,
-                                                activation=tf.nn.elu,
-                                                kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                                name="advantage_fc")
-
-            self.advantage = tf.layers.dense(inputs=self.advantage_fc,
-                                             units=self.action_size,
-                                             activation=None,
-                                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                                             name="advantages")
-
-            # Agregating layer
-            # Q(s,a) = V(s) + (A(s,a) - 1/|A| * sum A(s,a'))
-            self.output = self.value + \
-                tf.subtract(self.advantage, tf.reduce_mean(
-                    self.advantage, axis=1, keepdims=True))
+            self.output = tf.layers.dense(inputs=self.fc,
+                                          kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                          units=self.action_size,
+                                          activation=None)
 
             # Q is our predicted Q value.
             self.Q = tf.reduce_sum(tf.multiply(
@@ -348,7 +221,6 @@ class SumTree(object):
         # Contains the experiences (so the size of data is capacity)
         self.data = np.zeros(capacity, dtype=object)
 
- 
     def add(self, priority, data):
         """
         Here we add our priority score in the sumtree leaf and add the experience in data
@@ -542,9 +414,9 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
 
             b_idx[i] = index
             experience = [data]
-            
+
             memory_b.append(experience)
-        
+
         return b_idx, memory_b, b_ISWeights
 
     """
@@ -595,21 +467,3 @@ def predict_action(sess, DQNetwork, explore_start, explore_stop, decay_rate, dec
 # This function helps us to copy one set of variables to another
 # In our case we use it when we want to copy the parameters of DQN to Target_network
 # Thanks of the very good implementation of Arthur Juliani https://github.com/awjuliani
-
-
-def update_target_graph():
-
-    # Get the parameters of our DQNNetwork
-    from_vars = tf.get_collection(
-        tf.GraphKeys.TRAINABLE_VARIABLES, "DQNetwork")
-
-    # Get the parameters of our Target_network
-    to_vars = tf.get_collection(
-        tf.GraphKeys.TRAINABLE_VARIABLES, "TargetNetwork")
-
-    op_holder = []
-
-    # Update our target_network parameters with DQNNetwork parameters
-    for from_var, to_var in zip(from_vars, to_vars):
-        op_holder.append(to_var.assign(from_var))
-    return op_holder
