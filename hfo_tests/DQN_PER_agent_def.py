@@ -63,7 +63,7 @@ def main():
 # ----------------------------------------------------CONECTION TO SERVER-----------------------------------------
     num_teammates = hfo_env.getNumTeammates()
     num_opponents = hfo_env.getNumOpponents()
-    mem_size = 100000
+    mem_size = 1000000
     if 'memories/memory_{}_{}vs{}_def_{}.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents, mem_size) in os.listdir('./memories'):
         with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'rb') as memfile:
             memory = pickle.load(memfile)
