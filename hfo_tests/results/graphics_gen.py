@@ -64,29 +64,37 @@ for t in test_trials_files:
 random = 1 - int(random[-4].split(': ')[1])/int(random[-5].split(': ')[1])
 
 list10k = [x for x in train_trials_files[0].items()]
-list10k.insert(0, ('Random',random))
+list10k.insert(0, ('Random Agent',random))
 list10k = sorted(list10k, key=lambda x: x[1])
 plt.figure(1, figsize=[9, 3])
 plt.bar([x[0] for x in list10k], [x[1] for x in list10k])
+plt.title('10k Episodes training')
+plt.ylabel('Successful Defenses (%)')
 plt.savefig('Train_Success_10k')
 #--------------------------
 list50k = [x for x in train_trials_files[1].items()]
 list50k = sorted(list50k, key=lambda x: x[1])
 plt.figure(2, figsize=[9, 3])
 plt.bar([x[0] for x in list50k], [x[1] for x in list50k])
+plt.title('50k Episodes training')
+plt.ylabel('Successful Defenses (%)')
 plt.savefig('Train_Success_50k')
 #--------------------------
 list10k = [x for x in test_trials_files[0].items()]
-list10k.insert(0, ('Random',random))
+list10k.insert(0, ('Random Agent',random))
 list10k = sorted(list10k, key=lambda x: x[1])
 plt.figure(3, figsize=[9, 3])
 plt.bar([x[0] for x in list10k], [x[1] for x in list10k])
+plt.title('10k Episodes test')
+plt.ylabel('Successful Defenses (%)')
 plt.savefig('Test_Success_10k')
 #--------------------------
 list50k = [x for x in test_trials_files[1].items()]
 list50k = sorted(list50k, key=lambda x: x[1])
 plt.figure(4, figsize=[9, 3])
 plt.bar([x[0] for x in list50k], [x[1] for x in list50k])
+plt.title('50k Episodes test')
+plt.ylabel('Successful Defenses (%)')
 plt.savefig('Test_Success_50k')
 
 
