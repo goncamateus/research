@@ -3,6 +3,7 @@ import re
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import spline
 
 # file10 = [None, None, None, None]
 # file10[0] = open('10k_training_Trials.txt', 'r')
@@ -19,6 +20,8 @@ import numpy as np
 
 train_trials_files = [dict(), dict()]
 test_trials_files = [dict(), dict()]
+data10k = [dict(), dict()]
+data50k = [dict(), dict()]
 random = None
 for x in os.listdir('.'):
     split = x.split('_')
@@ -29,29 +32,36 @@ for x in os.listdir('.'):
             name = split[0]+'_'+split[1]
         else:
             name = split[0]
-        train_trials_files[0][name] = f.readlines()
+        data = f.readlines()
+        train_trials_files[0][name] = data
+        data10k[0][name] = data
     elif x.find('50k_training_Trials.txt') >= 0:
         if split[1].find('k') == -1:
             name = split[0]+'_'+split[1]
         else:
             name = split[0]
-        train_trials_files[1][name] = f.readlines()
+        data = f.readlines()
+        train_trials_files[1][name] = data
+        data50k[0][name] = data
     if x.find('10k_test_Trials.txt') >= 0:
         if split[1].find('k') == -1:
             name = split[0]+'_'+split[1]
         else:
             name = split[0]
-        test_trials_files[0][name] = f.readlines()
+        data = f.readlines()
+        test_trials_files[0][name] = data
+        data10k[1][name] = data
     elif x.find('50k_test_Trials.txt') >= 0:
         if split[1].find('k') == -1:
             name = split[0]+'_'+split[1]
         else:
             name = split[0]
-        test_trials_files[1][name] = f.readlines()
+        data = f.readlines()
+        test_trials_files[1][name] = data
+        data50k[1][name] = data
     elif x.find('random') >= 0:
         random = f.readlines()
     f.close()
-
 
 for t in train_trials_files:
     for k, data in t.items():
@@ -98,40 +108,126 @@ plt.ylabel('Successful Defenses (%)')
 plt.savefig('Test_Success_50k')
 
 
-# data10 = []
-# for f in file10:
-#     data10.append(f.readlines())
-#     f.close()
+defenses_10k_training = [[] for x in data10k[0].keys()]
+names = [x for x in data10k[0].keys()]
+xs = []
+for i, (k, data) in enumerate(data10k[0].items()):
+    g = 0
+    for j, line in enumerate(data[:-5]):
+        if line.find('GOAL') == -1:
+            g += 1
+        if j != 0 and j % 50 == 0:
+            if i == 0:
+                xs.append(j)
+            defenses_10k_training[i].append(g)
+            g = 0
 
-# data50 = []
-# for f in file50:
-#     data50.append(f.readlines())
-#     f.close()
+xs = np.array(xs)
+defenses_10k_training = np.array(defenses_10k_training)
 
-# trials = {'10k': {'training': int(data10[0][-4].split(': ')[1])/int(data10[0][-5].split(': ')[1]), 'test': int(data10[2][-4].split(': ')[1])/int(data10[2][-5].split(': ')[1])}, '50k': {
-#     'training': int(data50[0][-4].split(': ')[1])/int(data50[0][-5].split(': ')[1]), 'test': int(data50[2][-4].split(': ')[1])/int(data50[2][-5].split(': ')[1])}}
-# match = re.compile('Total reward: [0-9]*.[0-9]*')
-# reward10_train = []
-# for r in data10[1]:
-#     reward10_train.append(float(re.findall(match, r)[0].split(' ')[2])/1000)
-# reward10_train = np.array(reward10_train)
+plt.figure(1, figsize=(9, 3))
+plt.ylabel('Number of Defenses for 50 Trials')
+plt.title('10k Episodes Training Defenses Flow')
+for i, d in enumerate(defenses_10k_training):
+    # 300 represents number of points to make between T.min and T.max
+    xnew = np.linspace(xs.min(), xs.max(), 2000)
+    spl = spline(xs, d, xnew)  # BSpline object
 
-# reward10_test = []
-# for r in data10[3]:
-#     reward10_test.append(float(re.findall(match, r)[0].split(' ')[2])/1000)
-# reward10_test = np.array(reward10_test)
+    plt.plot(xnew, spl, label=names[i])
+    plt.legend(bbox_to_anchor=(1.0, 0.9, 0.09, 1),loc=3)
+plt.show()
 
-# reward50_train = []
-# for r in data50[1]:
-#     reward50_train.append(float(re.findall(match, r)[0].split(' ')[2])/1000)
-# reward50_train = np.array(reward50_train)
+#------------------------------------------------------------------
 
-# reward50_test = []
-# for r in data50[3]:
-#     reward50_test.append(float(re.findall(match, r)[0].split(' ')[2])/1000)
-# reward50_test = np.array(reward50_test)
+defenses_10k_test = [[] for x in data10k[1].keys()]
+names = [x for x in data10k[1].keys()]
+xs = []
+for i, (k, data) in enumerate(data10k[1].items()):
+    g = 0
+    for j, line in enumerate(data[:-5]):
+        if line.find('GOAL') == -1:
+            g += 1
+        if j != 0 and j % 50 == 0:
+            if i == 0:
+                xs.append(j)
+            defenses_10k_test[i].append(g)
+            g = 0
 
-# training = [100 - trials['10k']['training'] *
-#             100, 100 - trials['50k']['training']*100]
-# test = [100 - trials['10k']['test']*100, 100 - trials['50k']['test']*100]
-# names = ['10K Model', '50K Model']
+xs = np.array(xs)
+defenses_10k_test = np.array(defenses_10k_test)
+
+plt.figure(2, figsize=(9, 3))
+plt.ylabel('Number of Defenses for 50 Trials')
+plt.title('10k Episodes Test Defenses Flow')
+for i, d in enumerate(defenses_10k_test):
+    # 300 represents number of points to make between T.min and T.max
+    xnew = np.linspace(xs.min(), xs.max(), 200)
+    spl = spline(xs, d, xnew)  # BSpline object
+
+    plt.plot(xnew, spl, label=names[i])
+    plt.legend(bbox_to_anchor=(1.0, 0.9, 0.09, 1),loc=3)
+plt.show()
+
+#------------------------------------------------------------------
+
+defenses_50k_training = [[] for x in data50k[0].keys()]
+names = [x for x in data50k[0].keys()]
+xs = []
+for i, (k, data) in enumerate(data50k[0].items()):
+    g = 0
+    for j, line in enumerate(data[:-5]):
+        if line.find('GOAL') == -1:
+            g += 1
+        if j != 0 and j % 50 == 0:
+            if i == 0:
+                xs.append(j)
+            defenses_50k_training[i].append(g)
+            g = 0
+
+xs = np.array(xs)
+defenses_50k_training = np.array(defenses_50k_training)
+
+plt.figure(3, figsize=(9, 3))
+plt.ylabel('Number of Defenses for 50 Trials')
+plt.title('50k Episodes Training Defenses Flow')
+for i, d in enumerate(defenses_50k_training):
+    # 300 represents number of points to make between T.min and T.max
+    xnew = np.linspace(xs.min(), xs.max(), 10000)
+    spl = spline(xs, d, xnew)  # BSpline object
+
+    plt.plot(xnew, spl, label=names[i])
+    plt.legend(bbox_to_anchor=(1.0, 0.9, 0.09, 1),loc=3)
+plt.show()
+
+#------------------------------------------------------------------
+
+defenses_50k_test = [[] for x in data50k[1].keys()]
+names = [x for x in data50k[1].keys()]
+xs = []
+for i, (k, data) in enumerate(data50k[1].items()):
+    g = 0
+    for j, line in enumerate(data[:-5]):
+        if line.find('GOAL') == -1:
+            g += 1
+        if j != 0 and j % 50 == 0:
+            if i == 0:
+                xs.append(j)
+            defenses_50k_test[i].append(g)
+            g = 0
+
+xs = np.array(xs)
+defenses_50k_test = np.array(defenses_50k_test)
+
+plt.figure(4, figsize=(9, 3))
+plt.ylabel('Number of Defenses for 50 Trials')
+plt.title('50k Episodes Test Defenses Flow')
+for i, d in enumerate(defenses_50k_test):
+    # 300 represents number of points to make between T.min and T.max
+    xnew = np.linspace(xs.min(), xs.max(), 200)
+    spl = spline(xs, d, xnew)  # BSpline object
+
+    plt.plot(xnew, spl, label=names[i])
+    plt.legend(bbox_to_anchor=(1.0, 0.9, 0.09, 1),loc=3)
+plt.show()
+
+#------------------------------------------------------------------
