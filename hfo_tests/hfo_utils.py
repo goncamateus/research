@@ -29,7 +29,7 @@ def abs_y(normalized_y_pos):
                        pitchHalfWidth + tolerance_y)
 
 
-def remake_state(state, num_mates, num_ops, is_offensive):
+def remake_state(state, num_mates, num_ops, is_offensive=False):
     state[0] = abs_x(state[0], is_offensive)
     state[1] = abs_y(state[1])
     state[2] = unnormalize(state[2], -pi, pi)
@@ -88,3 +88,33 @@ def remake_state(state, num_mates, num_ops, is_offensive):
 
 def get_dist(v1, v2):
     return distance.euclidean(v1, v2)
+
+
+def strict_state(state, choosed_mates, choosed_ops, num_mates, num_ops, is_offensive=False):
+    new_state = state[:10].tolist()
+    for i in range(10, 10+choosed_mates):
+        new_state.append(state[i])
+    for i in range(10 + num_mates, 10 + num_mates + choosed_mates):
+        new_state.append(state[i])
+    for i in range(10 + 2*num_mates, 10 + 2*num_mates + choosed_mates):
+        new_state.append(state[i])
+    index = 10 + 3*num_mates
+    for i in range(choosed_mates):
+        new_state.append(state[index])
+        index += 1
+        new_state.append(state[index])
+        index += 1
+        new_state.append(state[index])
+        index += 1
+    index = 10 + 6*num_mates
+    for i in range(choosed_ops):
+        new_state.append(state[index])
+        index += 1
+        new_state.append(state[index])
+        index += 1
+        new_state.append(state[index])
+        index += 1
+    new_state.append(state[-2])
+    new_state.append(state[-1])
+    new_state = np.array(new_state)
+    return new_state

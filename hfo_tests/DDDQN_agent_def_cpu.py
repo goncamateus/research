@@ -180,10 +180,11 @@ def main():
         loss = None
         # Saver will help us to save our model
         saver = tf.train.Saver()
+        config = tf.ConfigProto(device_count={'GPU': 0})
         try:
             if parametros.training:
                 epi_list = []
-                with tf.Session() as sess:
+                with tf.Session(config=config) as sess:
                     if "model_{}_{}vs{}_def.ckpt".format(hfo_env.getUnum(), num_teammates, num_opponents) in os.listdir('./models'):
                         # Load the model
                         saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
@@ -349,7 +350,7 @@ def main():
                                 print("Model updated")
                         if episode % 5 == 0:
                             save_path = saver.save(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
-                                hfo_env.getUnum(), num_teammates, num_opponents))
+                                hfo_env.getUnum(), num_teammates, num_opponents), global_step=0, latest_filename='checkpoint_state')
                             print("Model Saved")
                         # ------------------------------------------------------- DOWN
                         # Quit if the server goes down
@@ -369,10 +370,10 @@ def main():
                             exit()
             # # WHEN TESTING
             else:
-                with tf.Session() as sess:
+                with tf.Session(config=config) as sess:
                     epi_list = []
                     # Load the model
-                    saver.restore(sess, "./models/model_2_1vs1_def.ckpt")
+                    saver.restore(sess, "./models/cpu/model_3_1vs1_def.ckpt")
                     episode_rewards = []
                     for episode in itertools.count():
                         status = hfo.IN_GAME
@@ -382,7 +383,7 @@ def main():
                             state = remake_state(
                                 state, num_teammates, num_opponents, False)
                             state = strict_state(state, 1, 1,
-                                               num_teammates, num_opponents)
+                                                 num_teammates, num_opponents)
                             if done:
                                 # Initialize the rewards of the episode
                                 episode_rewards = []
@@ -426,7 +427,7 @@ def main():
                             next_state = remake_state(
                                 next_state, num_teammates, num_opponents, False)
                             next_state = strict_state(next_state, 1, 1,
-                                               num_teammates, num_opponents)
+                                                 num_teammates, num_opponents)
                             # -----------------------------
                             reward = 0
                             if status == hfo.GOAL:
@@ -458,9 +459,6 @@ def main():
                         # Quit if the server goes down
                         if status == hfo.SERVER_DOWN:
                             hfo_env.act(hfo.QUIT)
-                            saver.save(sess, './exported/my_model')
-                            tf.train.write_graph(sess.graph, '.', "./exported/graph.pb", as_text=False)
-                            tf.train.write_graph(sess.graph, '.', "./exported/graph.pb_txt", as_text=True)
                             epi_file = open(
                                 '{}k_test_rewards.txt'.format(int(parametros.total_episodes/1000)), 'w')
                             epi_file.writelines(epi_list)

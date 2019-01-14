@@ -108,6 +108,9 @@ class DDDQNNet:
             # Remember that target_Q is the R(s,a) + ymax Qhat(s', a')
             self.target_Q = tf.placeholder(tf.float32, [None], name="target")
 
+            # Remember that target_Q is the R(s,a) + ymax Qhat(s', a')
+            self.Q = tf.placeholder(tf.float32, [None], name="output")
+
             """
             First convnet:
             CNN

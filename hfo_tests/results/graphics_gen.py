@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import spline
 
+plt.rcParams.update({'font.size': 18})
 # file10 = [None, None, None, None]
 # file10[0] = open('10k_training_Trials.txt', 'r')
 # file10[1] = open('10k_training_rewards.txt', 'r')
@@ -125,7 +126,7 @@ for i, (k, data) in enumerate(data10k[0].items()):
 xs = np.array(xs)
 defenses_10k_training = np.array(defenses_10k_training)
 
-plt.figure(1, figsize=(9, 3))
+plt.figure(5, figsize=(9, 3))
 plt.ylabel('Number of Defenses for 50 Trials')
 plt.title('10k Episodes Training Defenses Flow')
 for i, d in enumerate(defenses_10k_training):
@@ -134,8 +135,7 @@ for i, d in enumerate(defenses_10k_training):
     spl = spline(xs, d, xnew)  # BSpline object
 
     plt.plot(xnew, spl, label=names[i])
-    plt.legend(bbox_to_anchor=(1.0, 0.9, 0.09, 1),loc=3)
-plt.show()
+plt.savefig('10k_training_flow', bbox_inches='tight', pad_inches=0)
 
 #------------------------------------------------------------------
 
@@ -156,7 +156,7 @@ for i, (k, data) in enumerate(data10k[1].items()):
 xs = np.array(xs)
 defenses_10k_test = np.array(defenses_10k_test)
 
-plt.figure(2, figsize=(9, 3))
+plt.figure(6, figsize=(9, 3))
 plt.ylabel('Number of Defenses for 50 Trials')
 plt.title('10k Episodes Test Defenses Flow')
 for i, d in enumerate(defenses_10k_test):
@@ -165,8 +165,7 @@ for i, d in enumerate(defenses_10k_test):
     spl = spline(xs, d, xnew)  # BSpline object
 
     plt.plot(xnew, spl, label=names[i])
-    plt.legend(bbox_to_anchor=(1.0, 0.9, 0.09, 1),loc=3)
-plt.show()
+plt.savefig('10k_test_flow', bbox_inches='tight', pad_inches=0)
 
 #------------------------------------------------------------------
 
@@ -187,7 +186,7 @@ for i, (k, data) in enumerate(data50k[0].items()):
 xs = np.array(xs)
 defenses_50k_training = np.array(defenses_50k_training)
 
-plt.figure(3, figsize=(9, 3))
+plt.figure(7, figsize=(9, 3))
 plt.ylabel('Number of Defenses for 50 Trials')
 plt.title('50k Episodes Training Defenses Flow')
 for i, d in enumerate(defenses_50k_training):
@@ -196,8 +195,7 @@ for i, d in enumerate(defenses_50k_training):
     spl = spline(xs, d, xnew)  # BSpline object
 
     plt.plot(xnew, spl, label=names[i])
-    plt.legend(bbox_to_anchor=(1.0, 0.9, 0.09, 1),loc=3)
-plt.show()
+plt.savefig('50k_training_flow', bbox_inches='tight', pad_inches=0)
 
 #------------------------------------------------------------------
 
@@ -218,7 +216,7 @@ for i, (k, data) in enumerate(data50k[1].items()):
 xs = np.array(xs)
 defenses_50k_test = np.array(defenses_50k_test)
 
-plt.figure(4, figsize=(9, 3))
+plt.figure(8, figsize=(9, 3))
 plt.ylabel('Number of Defenses for 50 Trials')
 plt.title('50k Episodes Test Defenses Flow')
 for i, d in enumerate(defenses_50k_test):
@@ -227,7 +225,5 @@ for i, d in enumerate(defenses_50k_test):
     spl = spline(xs, d, xnew)  # BSpline object
 
     plt.plot(xnew, spl, label=names[i])
-    plt.legend(bbox_to_anchor=(1.0, 0.9, 0.09, 1),loc=3)
-plt.show()
-
+plt.savefig('50k_test_flow', bbox_inches='tight', pad_inches=0)
 #------------------------------------------------------------------
