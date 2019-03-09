@@ -55,16 +55,16 @@ def main():
     if args.record:
         hfo_env.connectToServer(hfo.HIGH_LEVEL_FEATURE_SET,
                                 './formations-dt', args.port,
-                                'localhost', 'base_right', play_goalie=False,
+                                'localhost', 'base_right', play_goalie=True,
                                 record_dir=args.rdir)
     else:
         hfo_env.connectToServer(hfo.HIGH_LEVEL_FEATURE_SET,
                                 './formations-dt', args.port,
-                                'localhost', 'base_right', play_goalie=False)
+                                'localhost', 'base_right', play_goalie=True)
 # ----------------------------------------------------CONECTION TO SERVER-----------------------------------------
     num_teammates = hfo_env.getNumTeammates()
     num_opponents = hfo_env.getNumOpponents()
-    mem_size = 1000000
+    mem_size = 50000
     if 'memories/memory_{}_{}vs{}_def_{}.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents, mem_size) in os.listdir('./memories'):
         with open('memories/memory_{}_{}vs{}_def.mem'.format(hfo_env.getUnum(), num_teammates, num_opponents), 'rb') as memfile:
             memory = pickle.load(memfile)
@@ -85,8 +85,8 @@ def main():
 
     gen_mem = int(args.genmem)
 # ----------------------------------------------------GOT PARAMS------------------------------------------------
-    actions = [hfo.MOVE, hfo.GO_TO_BALL]
-    rewards = [400, 1000]
+    actions = [hfo.DEFEND_GOAL, hfo.GO_TO_BALL]
+    rewards = [400, 600]
     parametros = Params(hfo_env.getStateSize(),
                         len(actions), training=int(args.train))
     # Reset the graph
@@ -108,7 +108,7 @@ def main():
                         frame, parametros.stacked_frames = stack_frames(
                             parametros.stacked_frames, state, True, state.shape, len(actions))
                     if get_ball_dist(state) < 20:
-                        action = random.randrange(0, 2)
+                        action = random.randrange(0, len(actions))
                         hfo_env.act(actions[action])
                     else:
                         action = 0
@@ -126,13 +126,12 @@ def main():
                     reward = 0
                     if status == hfo.GOAL:
                         reward = -1000
-                    elif '-1' in hfo_env.statusToString(status):
-                        reward = rewards[action]/3
-                    elif 'OUT' in hfo_env.statusToString(status):
-                        reward = rewards[action]/2
                     else:
                         if done:
-                            reward = rewards[action]
+                            if '-1' in hfo_env.statusToString(status):
+                                reward = rewards[action]
+                            else:
+                                reward = rewards[action]/2
                         else:
                             reward = rewards[action] - next_state[3]*3
                     p = [0 for x in range(len(actions))]
@@ -168,11 +167,11 @@ def main():
 # ----------------------------------------------Generate Memory----------------------------------------------------------
     else:
         # Instantiate the DQNetwork
-        DQNetwork = DDDQNNet_MLP([21, 4], parametros.action_size,
+        DQNetwork = DDDQNNet_MLP([12 + 6*num_teammates + 3*num_opponents, 4], len(actions),
                                  parametros.learning_rate, name="DQNetwork")
 
         # Instantiate the target network
-        TargetNetwork = DDDQNNet_MLP([21, 4], parametros.action_size,
+        TargetNetwork = DDDQNNet_MLP([12 + 6*num_teammates + 3*num_opponents, 4], len(actions),
                                      parametros.learning_rate, name="TargetNetwork")
         # Losses
         tf.summary.scalar("Loss", DQNetwork.loss)
@@ -198,7 +197,6 @@ def main():
                     # Update the parameters of our TargetNetwork with DQN_weights
                     update_target = update_target_graph()
                     sess.run(update_target)
-                    nmr_out = 0
                     taken = 0
                     for episode in itertools.count():
                         status = hfo.IN_GAME
@@ -244,21 +242,15 @@ def main():
                             reward = 0
                             if status == hfo.GOAL:
                                 reward = -20000
-                            elif '-1' in hfo_env.statusToString(status):
-                                reward = rewards[act]/4
-                            elif 'OUT' in hfo_env.statusToString(status):
-                                nmr_out += 1
-                                reward = rewards[act]/2
-                                if nmr_out % 20 and nmr_out > 1:
-                                    reward = reward*10
                             else:
                                 if done:
-                                    reward = rewards[act]
-                                    if '-2' in hfo_env.statusToString(status):
+                                    if '-1' in hfo_env.statusToString(status):
                                         taken += 1
                                         reward = rewards[act]*2
                                         if taken % 5 and taken > 1:
                                             reward = reward*20
+                                    else:
+                                        reward = rewards[act]/2
                                 else:
                                     reward = rewards[act] - next_state[3]*3
                             episode_rewards.append(reward)
@@ -373,7 +365,8 @@ def main():
                 with tf.Session() as sess:
                     epi_list = []
                     # Load the model
-                    saver.restore(sess, "./models/model_2_1vs1_def.ckpt")
+                    saver.restore(sess, "./models/model_{}_{}vs{}_def.ckpt".format(
+                                hfo_env.getUnum(), num_teammates, num_opponents))
                     episode_rewards = []
                     for episode in itertools.count():
                         status = hfo.IN_GAME
@@ -382,8 +375,8 @@ def main():
                             state = hfo_env.getState()
                             state = remake_state(
                                 state, num_teammates, num_opponents, False)
-                            state = strict_state(state, 1, 1,
-                                               num_teammates, num_opponents)
+                            # state = strict_state(state, 1, 1,
+                            #                    num_teammates, num_opponents)
                             if done:
                                 # Initialize the rewards of the episode
                                 episode_rewards = []
@@ -426,8 +419,8 @@ def main():
                             next_state = hfo_env.getState()
                             next_state = remake_state(
                                 next_state, num_teammates, num_opponents, False)
-                            next_state = strict_state(next_state, 1, 1,
-                                               num_teammates, num_opponents)
+                            # next_state = strict_state(next_state, 1, 1,
+                            #                    num_teammates, num_opponents)
                             # -----------------------------
                             reward = 0
                             if status == hfo.GOAL:
