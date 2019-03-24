@@ -169,6 +169,7 @@ class DuelingAgent(BaseAgent):
         batch_state, batch_action, batch_reward, batch_next_state = zip(
             *transitions)
 
+
         shape = (-1,)+self.num_feats
         batch_state = torch.tensor(
             np.array(batch_state), device=self.device, dtype=torch.float).view(shape)

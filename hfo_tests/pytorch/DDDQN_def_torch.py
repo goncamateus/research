@@ -163,25 +163,25 @@ def main():
         config.LEARN_START = 0
         print("Memory Loaded")
 
-    max_reached = False
     frame_idx = 1
-    train = True
+    train = False
+    gen_mem = True
 
     for episode in itertools.count():
         status = hfo.IN_GAME
         done = True
         episode_rewards = []
-        if max_reached:
-            break
-        while status == hfo.IN_GAME and not max_reached:
+        while status == hfo.IN_GAME:
             if done:
                 state = hfo_env.get_state()
                 frame = model.stack_frames(state, done)
             if train:
                 epsilon = config.epsilon_by_frame(int(frame_idx/4))
                 action = model.get_action(frame, epsilon)
-            else:
+            elif not gen_mem:
                 action = model.get_action(frame, 1.0)
+            else:
+                action = np.random.randint(0, model.env.action_space.n)
             if hfo_env.get_ball_dist(state) > 20:
                 action = 0
 
@@ -205,9 +205,6 @@ def main():
             state = next_state
 
             frame_idx += 1
-            if int(frame_idx/4) == config.MAX_FRAMES+1:
-                max_reached = True
-                break
             if train:
                 if int(frame_idx/4) % 10000 == 0:
                     model.save_w(path_model='./saved_agents/model_{}.dump'.format(hfo_env.getUnum()),
@@ -217,7 +214,7 @@ def main():
                     print("Memory Saved")
     #------------------------------ DOWN
     # Quit if the server goes down
-        if status == hfo.SERVER_DOWN or max_reached:
+        if status == hfo.SERVER_DOWN :
             model.save_w(path_model='./saved_agents/model_{}.dump'.format(hfo_env.getUnum()),
                         path_optim='./saved_agents/optim_{}.dump'.format(hfo_env.getUnum()))
             print("Model Saved")
