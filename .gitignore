@@ -5,3 +5,9 @@ __pycache__/
 noreward-rl/
 *.pt
 *.mem
+*.meta
+*index
+model_*
+*checkpoint
+*logs_model
+*saved_agents/
