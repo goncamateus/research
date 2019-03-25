@@ -17,9 +17,10 @@ import torch.optim as optim
 package_path = str(Path(__file__).parent.parent)
 sys.path.insert(0, package_path)
 
-from lib.Dueling_DQN_Torch import DuelingAgent as DQN_Agent
-from lib.hfo_env import HFOEnv
 from lib.hyperparameters import Config
+from lib.hfo_env import HFOEnv
+from lib.Dueling_DQN_Torch import DuelingAgent as DQN_Agent
+
 
 
 class DuelingDQN(nn.Module):
@@ -66,23 +67,27 @@ class DuelingDQN(nn.Module):
 
 class Model(DQN_Agent):
     def __init__(self, static_policy=False, env=None, config=None):
-        self.stacked_frames = deque([np.zeros(env.observation_space.shape, dtype=np.int)
-                                     for i in range(16)], maxlen=16)
+        self.stacked_frames = deque(
+            [np.zeros(env.observation_space.shape, dtype=np.int)
+             for i in range(16)], maxlen=16)
         super(Model, self).__init__(static_policy, env, config)
         self.num_feats = (*self.env.observation_space.shape,
                           len(self.stacked_frames))
 
     def declare_networks(self):
         self.model = DuelingDQN(
-            (*self.env.observation_space.shape, len(self.stacked_frames)), self.env.action_space.n)
+            (*self.env.observation_space.shape,
+             len(self.stacked_frames)), self.env.action_space.n)
         self.target_model = DuelingDQN(
-            (*self.env.observation_space.shape, len(self.stacked_frames)), self.env.action_space.n)
+            (*self.env.observation_space.shape,
+             len(self.stacked_frames)), self.env.action_space.n)
 
     def stack_frames(self, frame, is_new_episode):
         if is_new_episode:
             # Clear our stacked_frams
-            self.stacked_frames = deque([np.zeros(self.env.observation_space.shape, dtype=np.int)
-                                         for i in range(16)], maxlen=16)
+            self.stacked_frames = deque([np.zeros(
+                self.env.observation_space.shape,
+                dtype=np.int) for i in range(16)], maxlen=16)
 
             # Because we're in a new episode, copy the same frame 4x
             for _ in range(16):
@@ -95,15 +100,18 @@ class Model(DQN_Agent):
             # Append frame to deque, automatically removes the oldest frame
             self.stacked_frames.append(frame)
 
-            # Build the stacked state (first dimension specifies different frames)
+            # Build the stacked state (first dimension specifies different
+            # frames)
             stacked_state = np.stack(self.stacked_frames, axis=1)
 
         return stacked_state
 
+
 def main():
     config = Config()
 
-    config.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    config.device = torch.device(
+        "cuda" if torch.cuda.is_available() else "cpu")
 
     # epsilon variables
     config.epsilon_start = 1.0
@@ -128,13 +136,12 @@ def main():
     config.SIGMA_INIT = 0.5
 
     # Learning control variables
-    config.LEARN_START = 100000
+    config.LEARN_START = 0
     config.MAX_FRAMES = 60000000
     config.UPDATE_FREQ = 1
 
     # Nstep controls
     config.N_STEPS = 1
-
 
     actions = [hfo.MOVE, hfo.GO_TO_BALL]
     rewards = [700, 1000]
@@ -152,7 +159,8 @@ def main():
 
     model_path = './saved_agents/model_{}.dump'.format(hfo_env.getUnum())
     optim_path = './saved_agents/optim_{}.dump'.format(hfo_env.getUnum())
-    mem_path = './saved_agents/exp_replay_agent_{}.dump'.format(hfo_env.getUnum())
+    mem_path = './saved_agents/exp_replay_agent_{}.dump'.format(
+        hfo_env.getUnum())
 
     if os.path.isfile(model_path) and os.path.isfile(optim_path):
         model.load_w(model_path=model_path, optim_path=optim_path)
@@ -162,10 +170,11 @@ def main():
         model.load_replay(mem_path=mem_path)
         config.LEARN_START = 0
         print("Memory Loaded")
+    
 
     frame_idx = 1
-    train = False
-    gen_mem = True
+    train = True
+    gen_mem = False
 
     for episode in itertools.count():
         status = hfo.IN_GAME
@@ -176,7 +185,7 @@ def main():
                 state = hfo_env.get_state()
                 frame = model.stack_frames(state, done)
             if train:
-                epsilon = config.epsilon_by_frame(int(frame_idx/4))
+                epsilon = config.epsilon_by_frame(int(frame_idx / 4))
                 action = model.get_action(frame, epsilon)
             elif not gen_mem:
                 action = model.get_action(frame, 1.0)
@@ -206,22 +215,26 @@ def main():
 
             frame_idx += 1
             if train:
-                if int(frame_idx/4) % 10000 == 0:
-                    model.save_w(path_model='./saved_agents/model_{}.dump'.format(hfo_env.getUnum()),
-                                path_optim='./saved_agents/optim_{}.dump'.format(hfo_env.getUnum()))
+                if int(frame_idx / 4) % 10000 == 0:
+                    model.save_w(path_model='./saved_agents/model_\
+                        {}.dump'.format(hfo_env.getUnum()),
+                                 path_optim='./saved_agents/optim_\
+                                 {}.dump'.format(hfo_env.getUnum()))
                     print("Model Saved")
                     model.save_replay(mem_path=mem_path)
                     print("Memory Saved")
-    #------------------------------ DOWN
     # Quit if the server goes down
-        if status == hfo.SERVER_DOWN :
-            model.save_w(path_model='./saved_agents/model_{}.dump'.format(hfo_env.getUnum()),
-                        path_optim='./saved_agents/optim_{}.dump'.format(hfo_env.getUnum()))
+        if status == hfo.SERVER_DOWN:
+            model.save_w(path_model='./saved_agents/model_\
+                {}.dump'.format(hfo_env.getUnum()),
+                         path_optim='./saved_agents/optim_\
+                         {}.dump'.format(hfo_env.getUnum()))
             print("Model Saved")
             model.save_replay(mem_path=mem_path)
             print("Memory Saved")
             hfo_env.act(hfo.QUIT)
             exit()
+
 
 if __name__ == "__main__":
     main()

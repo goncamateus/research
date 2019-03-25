@@ -72,10 +72,10 @@ class BaseAgent(object):
                     sum_ += torch.sum(param.abs()).item()
                     count += np.prod(param.shape)
 
-            if count > 0:
-                with open(os.path.join(self.log_dir, 'sig_param_mag.csv'), 'a') as f:
-                    writer = csv.writer(f)
-                    writer.writerow((tstep, sum_/count))
+            # if count > 0:
+            #     with open(os.path.join(self.log_dir, 'sig_param_mag.csv'), 'a') as f:
+            #         writer = csv.writer(f)
+            #         writer.writerow((tstep, sum_/count))
 
     def save_td(self, td, tstep):
         with open(os.path.join(self.log_dir, 'td.csv'), 'a') as f:
@@ -166,9 +166,15 @@ class DuelingAgent(BaseAgent):
         # random transition batch is taken from experience replay memory
         transitions, indices, weights = self.memory.sample(self.batch_size)
 
-        batch_state, batch_action, batch_reward, batch_next_state = zip(
-            *transitions)
 
+        batch_state = np.array([each[0][0]
+                                for each in transitions], ndmin=2)
+        batch_action = np.array(
+            [each[0][1] for each in transitions])
+        batch_reward = np.array(
+            [each[0][2] for each in transitions])
+        batch_next_state = np.array([each[0][3]
+                                    for each in transitions], ndmin=2)
 
         shape = (-1,)+self.num_feats
         batch_state = torch.tensor(
@@ -246,7 +252,7 @@ class DuelingAgent(BaseAgent):
         self.optimizer.step()
 
         self.update_target_model()
-        self.save_td(loss.item(), frame)
+        # self.save_td(loss.item(), frame)
         self.save_sigma_param_magnitudes(frame)
 
     def get_action(self, s, eps=0.1):  # faster
