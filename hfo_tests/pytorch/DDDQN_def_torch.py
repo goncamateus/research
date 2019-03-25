@@ -17,10 +17,9 @@ import torch.optim as optim
 package_path = str(Path(__file__).parent.parent)
 sys.path.insert(0, package_path)
 
-from lib.hyperparameters import Config
-from lib.hfo_env import HFOEnv
 from lib.Dueling_DQN_Torch import DuelingAgent as DQN_Agent
-
+from lib.hfo_env import HFOEnv
+from lib.hyperparameters import Config
 
 
 class DuelingDQN(nn.Module):
@@ -170,10 +169,9 @@ def main():
         model.load_replay(mem_path=mem_path)
         config.LEARN_START = 0
         print("Memory Loaded")
-    
 
     frame_idx = 1
-    train = True
+    train = False
     gen_mem = False
 
     for episode in itertools.count():
@@ -216,19 +214,14 @@ def main():
             frame_idx += 1
             if train:
                 if int(frame_idx / 4) % 10000 == 0:
-                    model.save_w(path_model='./saved_agents/model_\
-                        {}.dump'.format(hfo_env.getUnum()),
-                                 path_optim='./saved_agents/optim_\
-                                 {}.dump'.format(hfo_env.getUnum()))
+                    model.save_w(path_model=model_path,
+                                 path_optim=optim_path)
                     print("Model Saved")
                     model.save_replay(mem_path=mem_path)
                     print("Memory Saved")
     # Quit if the server goes down
         if status == hfo.SERVER_DOWN:
-            model.save_w(path_model='./saved_agents/model_\
-                {}.dump'.format(hfo_env.getUnum()),
-                         path_optim='./saved_agents/optim_\
-                         {}.dump'.format(hfo_env.getUnum()))
+            model.save_w(path_model=model_path, path_optim=optim_path)
             print("Model Saved")
             model.save_replay(mem_path=mem_path)
             print("Memory Saved")
