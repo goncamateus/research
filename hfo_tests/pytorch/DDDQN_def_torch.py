@@ -125,7 +125,7 @@ def main():
     config.LR = 1e-4
     # memory
     config.TARGET_NET_UPDATE_FREQ = 1000
-    config.EXP_REPLAY_SIZE = 1000000
+    config.EXP_REPLAY_SIZE = 100000
     config.BATCH_SIZE = 64
     config.PRIORITY_ALPHA = 0.6
     config.PRIORITY_BETA_START = 0.4
@@ -135,7 +135,7 @@ def main():
     config.SIGMA_INIT = 0.5
 
     # Learning control variables
-    config.LEARN_START = 1000000
+    config.LEARN_START = 100000
     config.MAX_FRAMES = 60000000
     config.UPDATE_FREQ = 1
 
@@ -189,6 +189,7 @@ def main():
                         gen_mem = False
                         frame_idx = 0
                         model.learn_start = 0
+                        print('Start Learning at Episode', episode)
                     epsilon = config.epsilon_by_frame(int(frame_idx / 4))
                     action = model.get_action(frame, epsilon)
             else:
