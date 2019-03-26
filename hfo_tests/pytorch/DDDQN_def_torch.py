@@ -125,7 +125,7 @@ def main():
     config.LR = 1e-4
     # memory
     config.TARGET_NET_UPDATE_FREQ = 1000
-    config.EXP_REPLAY_SIZE = 100000
+    config.EXP_REPLAY_SIZE = 1000000
     config.BATCH_SIZE = 64
     config.PRIORITY_ALPHA = 0.6
     config.PRIORITY_BETA_START = 0.4
@@ -135,7 +135,7 @@ def main():
     config.SIGMA_INIT = 0.5
 
     # Learning control variables
-    config.LEARN_START = 0
+    config.LEARN_START = 1000000
     config.MAX_FRAMES = 60000000
     config.UPDATE_FREQ = 1
 
@@ -171,7 +171,7 @@ def main():
         print("Memory Loaded")
 
     frame_idx = 1
-    train = False
+    train = True
     gen_mem = False
 
     for episode in itertools.count():
@@ -183,12 +183,18 @@ def main():
                 state = hfo_env.get_state()
                 frame = model.stack_frames(state, done)
             if train:
-                epsilon = config.epsilon_by_frame(int(frame_idx / 4))
-                action = model.get_action(frame, epsilon)
-            elif not gen_mem:
-                action = model.get_action(frame, 1.0)
+                if gen_mem and frame_idx/4 < config.EXP_REPLAY_SIZE:
+                    action = np.random.randint(0, model.env.action_space.n)
+                else:
+                    if gen_mem:
+                        gen_mem = False
+                        frame_idx = 0
+                        model.learn_start = 0
+                    epsilon = config.epsilon_by_frame(int(frame_idx / 4))
+                    action = model.get_action(frame, epsilon)
             else:
-                action = np.random.randint(0, model.env.action_space.n)
+                action = model.get_action(frame, 1.0)
+
             if hfo_env.get_ball_dist(state) > 20:
                 action = 0
 
@@ -207,7 +213,7 @@ def main():
                 next_frame = model.stack_frames(next_state, done)
 
             if train:
-                model.update(frame, action, reward, next_frame, frame_idx)
+                model.update(frame, action, reward, next_frame, int(frame_idx/4))
             frame = next_frame
             state = next_state
 
