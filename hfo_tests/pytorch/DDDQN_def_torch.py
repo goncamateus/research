@@ -167,12 +167,11 @@ def main():
 
     if os.path.isfile(mem_path):
         model.load_replay(mem_path=mem_path)
-        config.LEARN_START = 0
         print("Memory Loaded")
 
     frame_idx = 1
     train = True
-    gen_mem = False
+    gen_mem = True
 
     for episode in itertools.count():
         status = hfo.IN_GAME
@@ -183,7 +182,7 @@ def main():
                 state = hfo_env.get_state()
                 frame = model.stack_frames(state, done)
             if train:
-                if gen_mem and frame_idx/4 < config.EXP_REPLAY_SIZE:
+                if gen_mem and frame_idx / 4 < config.EXP_REPLAY_SIZE:
                     action = np.random.randint(0, model.env.action_space.n)
                 else:
                     if gen_mem:
@@ -213,7 +212,8 @@ def main():
                 next_frame = model.stack_frames(next_state, done)
 
             if train:
-                model.update(frame, action, reward, next_frame, int(frame_idx/4))
+                model.update(frame, action, reward,
+                             next_frame, int(frame_idx / 4))
             frame = next_frame
             state = next_state
 
@@ -223,8 +223,8 @@ def main():
                     model.save_w(path_model=model_path,
                                  path_optim=optim_path)
                     print("Model Saved")
-                    model.save_replay(mem_path=mem_path)
-                    print("Memory Saved")
+                    # model.save_replay(mem_path=mem_path)
+                    # print("Memory Saved")
     # Quit if the server goes down
         if status == hfo.SERVER_DOWN:
             model.save_w(path_model=model_path, path_optim=optim_path)
