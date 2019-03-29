@@ -187,7 +187,7 @@ def main():
                         model.learn_start = 0
                         print('Start Learning at Episode', episode)
                     epsilon = config.epsilon_by_frame(int(frame_idx / 4))
-                    action = model.get_action(frame, epsilon)
+                    action = model.get_action(frame, epsilon, train=train)
             else:
                 action = model.get_action(frame, 1.0)
 

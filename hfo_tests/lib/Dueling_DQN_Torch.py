@@ -261,9 +261,10 @@ class DuelingAgent(BaseAgent):
         # self.save_td(loss.item(), frame)
         self.save_sigma_param_magnitudes(frame)
 
-    def get_action(self, s, eps=0.1):  # faster
+    def get_action(self, s, eps=0.1, train=True):  # faster
         with torch.no_grad():
-            if np.random.random() >= eps or self.static_policy or self.noisy:
+            if np.random.random() >= eps or self.static_policy or self.noisy\
+               or not train:
                 X = torch.tensor([s], device=self.device, dtype=torch.float)
                 self.model.sample_noise()
                 out = self.model(X)
