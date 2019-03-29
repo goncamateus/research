@@ -72,10 +72,10 @@ class BaseAgent(object):
                     sum_ += torch.sum(param.abs()).item()
                     count += np.prod(param.shape)
 
-            # if count > 0:
-            #     with open(os.path.join(self.log_dir, 'sig_param_mag.csv'), 'a') as f:
-            #         writer = csv.writer(f)
-            #         writer.writerow((tstep, sum_/count))
+# if count > 0:
+#     with open(os.path.join(self.log_dir, 'sig_param_mag.csv'), 'a') as f:
+#         writer = csv.writer(f)
+#         writer.writerow((tstep, sum_/count))
 
     def save_td(self, td, tstep):
         with open(os.path.join(self.log_dir, 'td.csv'), 'a') as f:
@@ -86,17 +86,18 @@ class BaseAgent(object):
         self.rewards.append(reward)
 
     def save_action(self, action, tstep):
-        self.action_selections[int(action)] += 1.0/self.action_log_frequency
-        if (tstep+1) % self.action_log_frequency == 0:
+        self.action_selections[int(action)] += 1.0 / self.action_log_frequency
+        if (tstep + 1) % self.action_log_frequency == 0:
             with open(os.path.join(self.log_dir, 'action_log.csv'), 'a') as f:
                 writer = csv.writer(f)
-                writer.writerow(list([tstep]+self.action_selections))
+                writer.writerow(list([tstep] + self.action_selections))
             self.action_selections = [
                 0 for _ in range(len(self.action_selections))]
 
 
 class DuelingAgent(BaseAgent):
-    def __init__(self, static_policy=False, env=None, config=None, log_dir='/tmp/gym'):
+    def __init__(self, static_policy=False, env=None,
+                 config=None, log_dir='/tmp/gym'):
         super(DuelingAgent, self).__init__(
             config=config, env=env, log_dir=log_dir)
         self.device = config.device
@@ -156,7 +157,7 @@ class DuelingAgent(BaseAgent):
         if(len(self.nstep_buffer) < self.nsteps):
             return
 
-        R = sum([self.nstep_buffer[i][2]*(self.gamma**i)
+        R = sum([self.nstep_buffer[i][2] * (self.gamma**i)
                  for i in range(self.nsteps)])
         state, action, _, _ = self.nstep_buffer.pop(0)
 
@@ -166,7 +167,6 @@ class DuelingAgent(BaseAgent):
         # random transition batch is taken from experience replay memory
         transitions, indices, weights = self.memory.sample(self.batch_size)
 
-
         batch_state = np.array([each[0][0]
                                 for each in transitions], ndmin=2)
         batch_action = np.array(
@@ -174,24 +174,28 @@ class DuelingAgent(BaseAgent):
         batch_reward = np.array(
             [each[0][2] for each in transitions])
         batch_next_state = np.array([each[0][3]
-                                    for each in transitions], ndmin=2)
+                                     for each in transitions], ndmin=2)
 
-        shape = (-1,)+self.num_feats
+        shape = (-1,) + self.num_feats
         batch_state = torch.tensor(
-            np.array(batch_state), device=self.device, dtype=torch.float).view(shape)
+            np.array(batch_state),
+            device=self.device, dtype=torch.float).view(shape)
         batch_action = torch.tensor(
-            batch_action, device=self.device, dtype=torch.long).squeeze().view(-1, 1)
+            batch_action, device=self.device,
+            dtype=torch.long).squeeze().view(-1, 1)
         batch_reward = torch.tensor(
-            batch_reward, device=self.device, dtype=torch.float).squeeze().view(-1, 1)
+            batch_reward, device=self.device,
+            dtype=torch.float).squeeze().view(-1, 1)
 
         non_final_mask = torch.tensor(tuple(map(
-            lambda s: s is not None, batch_next_state)), device=self.device, dtype=torch.uint8)
+            lambda s: s is not None, batch_next_state)),
+            device=self.device, dtype=torch.uint8)
         try:  # sometimes all next states are false
             non_final_next_states = torch.tensor(
                 [s for s in batch_next_state if s is not None],
                 device=self.device, dtype=torch.float).view(shape)
             empty_next_state_values = False
-        except:
+        except Exception:
             non_final_next_states = None
             empty_next_state_values = True
 
@@ -200,7 +204,8 @@ class DuelingAgent(BaseAgent):
 
     def compute_loss(self, batch_vars):  # faster
         batch_state, batch_action, batch_reward, non_final_next_states,\
-            non_final_mask, empty_next_state_values, indices, weights = batch_vars
+            non_final_mask, empty_next_state_values,\
+            indices, weights = batch_vars
 
         # estimate
         self.model.sample_noise()
@@ -210,7 +215,8 @@ class DuelingAgent(BaseAgent):
         # target
         with torch.no_grad():
             max_next_q_values = torch.zeros(
-                self.batch_size, device=self.device, dtype=torch.float).unsqueeze(dim=1)
+                self.batch_size, device=self.device,
+                dtype=torch.float).unsqueeze(dim=1)
             if not empty_next_state_values:
                 max_next_action = self.get_max_next_state_action(
                     non_final_next_states)
@@ -218,7 +224,7 @@ class DuelingAgent(BaseAgent):
                 max_next_q_values[non_final_mask] = self.target_model(
                     non_final_next_states).gather(1, max_next_action)
             expected_q_values = batch_reward + \
-                ((self.gamma**self.nsteps)*max_next_q_values)
+                ((self.gamma**self.nsteps) * max_next_q_values)
 
         diff = (expected_q_values - current_q_values)
         if self.priority_replay:
@@ -280,7 +286,7 @@ class DuelingAgent(BaseAgent):
 
     def finish_nstep(self):
         while len(self.nstep_buffer) > 0:
-            R = sum([self.nstep_buffer[i][2]*(self.gamma**i)
+            R = sum([self.nstep_buffer[i][2] * (self.gamma**i)
                      for i in range(len(self.nstep_buffer))])
             state, action, _, _ = self.nstep_buffer.pop(0)
 

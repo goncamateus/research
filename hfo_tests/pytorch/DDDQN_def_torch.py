@@ -13,10 +13,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-
-package_path = str(Path(__file__).parent.parent)
-sys.path.insert(0, package_path)
-
 from lib.Dueling_DQN_Torch import DuelingAgent as DQN_Agent
 from lib.hfo_env import HFOEnv
 from lib.hyperparameters import Config
@@ -125,7 +121,7 @@ def main():
     config.LR = 1e-4
     # memory
     config.TARGET_NET_UPDATE_FREQ = 1000
-    config.EXP_REPLAY_SIZE = 100000
+    config.EXP_REPLAY_SIZE = 1000000
     config.BATCH_SIZE = 64
     config.PRIORITY_ALPHA = 0.6
     config.PRIORITY_BETA_START = 0.4
@@ -135,7 +131,7 @@ def main():
     config.SIGMA_INIT = 0.5
 
     # Learning control variables
-    config.LEARN_START = 100000
+    config.LEARN_START = 1000000
     config.MAX_FRAMES = 60000000
     config.UPDATE_FREQ = 1
 
@@ -170,8 +166,8 @@ def main():
         print("Memory Loaded")
 
     frame_idx = 1
-    train = True
-    gen_mem = True
+    train = False
+    gen_mem = False
 
     for episode in itertools.count():
         status = hfo.IN_GAME
@@ -212,9 +208,8 @@ def main():
             else:
                 next_frame = model.stack_frames(next_state, done)
 
-            if train:
-                model.update(frame, action, reward,
-                             next_frame, int(frame_idx / 4))
+            model.update(frame, action, reward,
+                         next_frame, int(frame_idx / 4))
             frame = next_frame
             state = next_state
 
@@ -224,9 +219,14 @@ def main():
                     model.save_w(path_model=model_path,
                                  path_optim=optim_path)
                     print("Model Saved")
-                    # model.save_replay(mem_path=mem_path)
-                    # print("Memory Saved")
-    # Quit if the server goes down
+            if frame_idx / 4 > config.LEARN_START + 100:
+                model.save_w(path_model=model_path, path_optim=optim_path)
+                print("Model Saved")
+                model.save_replay(mem_path=mem_path)
+                print("Memory Saved")
+                hfo_env.act(hfo.QUIT)
+                exit()
+        # Quit if the server goes down
         if status == hfo.SERVER_DOWN:
             model.save_w(path_model=model_path, path_optim=optim_path)
             print("Model Saved")
