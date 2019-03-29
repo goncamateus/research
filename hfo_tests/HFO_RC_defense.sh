@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-export PYTHONPATH=$PYTHONPATH:DIR
+export PYTHONPATH=$PYTHONPATH:$DIR
 echo $PYTHONPATH
 ../../HFO/bin/HFO --fullstate --headless --defense-agents=1 --offense-npcs=1 --defense-npcs=1 --offense-team=helios --trials $1 &
 sleep 10
