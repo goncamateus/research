@@ -3,10 +3,10 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 export PYTHONPATH=$PYTHONPATH:$DIR
 echo $PYTHONPATH
-../../HFO/bin/HFO --fullstate --headless --defense-agents=1 --offense-npcs=1 --defense-npcs=1 --offense-team=helios --trials $1 &
+../../HFO/bin/HFO --no-logging --fullstate --headless --defense-agents=1 --offense-npcs=1 --defense-npcs=1 --offense-team=helios --trials $1 &
 sleep 10
 # Sleep is needed to make sure doesn't get connected too soon, as unum 1 (goalie)
-python pytorch/DDDQN_def_torch.py &> agent1.txt &
+python pytorch/DDDQN_def_torch.py &
 sleep 5
 # python pytorch/DDDQN_def_torch.py &> agent2.txt &
 # sleep 5
