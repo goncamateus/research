@@ -215,11 +215,11 @@ def main():
 
             frame_idx += 1
             if train:
-                if int(frame_idx / 4) % 10000 == 0:
+                if int(frame_idx / 4) % 10000 == 0 and frame_idx > 1:
                     model.save_w(path_model=model_path,
                                  path_optim=optim_path)
                     print("Model Saved")
-            if frame_idx / 4 > config.LEARN_START + 100:
+            if frame_idx / 4 > config.LEARN_START + 100 and frame_idx > 1:
                 model.save_w(path_model=model_path, path_optim=optim_path)
                 print("Model Saved")
                 model.save_replay(mem_path=mem_path)

@@ -15,10 +15,13 @@ class HFOEnv(hfo.HFOEnvironment):
                     pitchHalfWidth * pitchHalfWidth)
     stamina_max = 8000
 
-    def __init__(self, actions, rewards, play_goalie=False):
+    def __init__(self, actions, rewards,
+                 is_offensive=False, play_goalie=False):
         super(HFOEnv, self).__init__()
         self.connectToServer(hfo.HIGH_LEVEL_FEATURE_SET, './formations-dt',
-                             6000, 'localhost', 'base_right', play_goalie=play_goalie)
+                             6000, 'localhost',
+                             'base_left' if is_offensive else 'base_right',
+                             play_goalie=play_goalie)
 
         class ObservationSpace():
             def __init__(self, env, rewards):
@@ -38,12 +41,16 @@ class HFOEnv(hfo.HFOEnvironment):
         self.num_teammates = self.getNumTeammates()
         self.num_opponents = self.getNumOpponents()
 
-    def step(self, action, act_args=None, is_offensive=False):
-        action = self.action_space.actions[action]
-        if act_args: self.act(action, act_args)
-        else: self.act(action)
+    def step(self, action, is_offensive=False):
+        if isinstance(action, tuple):
+            self.act(self.action_space.actions[action[0]], action[1])
+            action = self.action_space.actions[action[0]]
+        else:
+            action = self.action_space.actions[action]
+            self.act(action)
         act = self.action_space.actions.index(action)
         status = super(HFOEnv, self).step()
+        print('ai', act)
         if status != hfo.IN_GAME:
             done = True
         else:
@@ -72,33 +79,41 @@ class HFOEnv(hfo.HFOEnvironment):
             reward = 0
         elif 'OUT' in self.statusToString(status):
             self.observation_space.nmr_out += 1
-            reward = self.observation_space.rewards[act]/2
-            if self.observation_space.nmr_out % 20 and self.observation_space.nmr_out > 1:
-                reward = reward*10
+            reward = self.observation_space.rewards[act] / 2
+            if self.observation_space.nmr_out % 20\
+               and self.observation_space.nmr_out > 1:
+                reward = reward * 10
         else:
             if done:
                 reward = self.observation_space.rewards[act]
                 if '-{}'.format(self.getUnum()) in self.statusToString(status):
                     self.observation_space.taken += 1
-                    reward = self.observation_space.rewards[act]*2
-                    if self.observation_space.taken % 5 and self.observation_space.taken > 1:
-                        reward = reward*20
+                    reward = self.observation_space.rewards[act] * 2
+                    if self.observation_space.taken % 5\
+                       and self.observation_space.taken > 1:
+                        reward = reward * 20
             else:
-                reward = self.observation_space.rewards[act] - next_state[3]*3
+                reward = self.observation_space.rewards[act]\
+                    - next_state[3] * 3
 
         return reward
 
     def unnormalize(self, val, min_val, max_val):
-        return ((val - self.FEAT_MIN) / (self.FEAT_MAX - self.FEAT_MIN)) * (max_val - min_val) + min_val
+        return ((val - self.FEAT_MIN) / (self.FEAT_MAX - self.FEAT_MIN))\
+            * (max_val - min_val) + min_val
 
     def abs_x(self, normalized_x_pos, playing_offense):
         if playing_offense:
-            return self.unnormalize(normalized_x_pos, -self.tolerance_x, self.pitchHalfLength + self.tolerance_x)
+            return self.unnormalize(normalized_x_pos, -self.tolerance_x,
+                                    self.pitchHalfLength + self.tolerance_x)
         else:
-            return self.unnormalize(normalized_x_pos, -self.pitchHalfLength-self.tolerance_x, self.tolerance_x)
+            return self.unnormalize(normalized_x_pos,
+                                    -self.pitchHalfLength - self.tolerance_x,
+                                    self.tolerance_x)
 
     def abs_y(self, normalized_y_pos):
-        return self.unnormalize(normalized_y_pos, -self.pitchHalfWidth - self.tolerance_y,
+        return self.unnormalize(normalized_y_pos,
+                                -self.pitchHalfWidth - self.tolerance_y,
                                 self.pitchHalfWidth + self.tolerance_y)
 
     def remake_state(self, state, is_offensive=False):
@@ -116,22 +131,22 @@ class HFOEnv(hfo.HFOEnvironment):
             state[9] = self.unnormalize(state[9], 0, self.max_R)
         else:
             state[9] = -1000
-        for i in range(10, 10+num_mates):
+        for i in range(10, 10 + num_mates):
             if state[i] != -2:
                 state[i] = self.unnormalize(state[i], 0, self.pi)
             else:
                 state[i] = -1000
-        for i in range(10 + num_mates, 10 + 2*num_mates):
+        for i in range(10 + num_mates, 10 + 2 * num_mates):
             if state[i] != -2:
                 state[i] = self.unnormalize(state[i], 0, self.max_R)
             else:
                 state[i] = -1000
-        for i in range(10 + 2*num_mates, 10 + 3*num_mates):
+        for i in range(10 + 2 * num_mates, 10 + 3 * num_mates):
             if state[i] != -2:
                 state[i] = self.unnormalize(state[i], 0, self.pi)
             else:
                 state[i] = -1000
-        index = 10 + 3*num_mates
+        index = 10 + 3 * num_mates
         for i in range(num_mates):
             if state[index] != -2:
                 state[index] = self.abs_x(state[index], is_offensive)
@@ -143,7 +158,7 @@ class HFOEnv(hfo.HFOEnvironment):
             else:
                 state[index] = -1000
             index += 2
-        index = 10 + 6*num_mates
+        index = 10 + 6 * num_mates
         for i in range(num_ops):
             if state[index] != -2:
                 state[index] = self.abs_x(state[index], is_offensive)
@@ -158,24 +173,26 @@ class HFOEnv(hfo.HFOEnvironment):
         state[-1] = self.unnormalize(state[-1], 0, self.stamina_max)
         return state
 
-    def get_dist(self, v1, v2):
-        return distance.euclidean(v1, v2)
+    def get_dist(self, init, end):
+        return distance.euclidean(init, end)
 
     def get_ball_dist(self, state):
         agent = (state[0], state[1])
         ball = (state[3], state[4])
         return distance.euclidean(agent, ball)
 
-    def strict_state(self, state, choosed_mates, choosed_ops, is_offensive=False):
-        num_mates, num_ops = self.num_teammates, self.num_opponents
+    def strict_state(self, state,
+                     choosed_mates, choosed_ops,
+                     is_offensive=False):
+        num_mates = self.num_teammates
         new_state = state[:10].tolist()
-        for i in range(10, 10+choosed_mates):
+        for i in range(10, 10 + choosed_mates):
             new_state.append(state[i])
         for i in range(10 + num_mates, 10 + num_mates + choosed_mates):
             new_state.append(state[i])
-        for i in range(10 + 2*num_mates, 10 + 2*num_mates + choosed_mates):
+        for i in range(10 + 2 * num_mates, 10 + 2 * num_mates + choosed_mates):
             new_state.append(state[i])
-        index = 10 + 3*num_mates
+        index = 10 + 3 * num_mates
         for i in range(choosed_mates):
             new_state.append(state[index])
             index += 1
@@ -183,7 +200,7 @@ class HFOEnv(hfo.HFOEnvironment):
             index += 1
             new_state.append(state[index])
             index += 1
-        index = 10 + 6*num_mates
+        index = 10 + 6 * num_mates
         for i in range(choosed_ops):
             new_state.append(state[index])
             index += 1
@@ -195,4 +212,3 @@ class HFOEnv(hfo.HFOEnvironment):
         new_state.append(state[-1])
         new_state = np.array(new_state)
         return new_state
-        
