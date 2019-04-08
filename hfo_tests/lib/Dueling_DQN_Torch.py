@@ -10,11 +10,11 @@ from .prioritized_experience_replay import Memory
 
 
 class BaseAgent(object):
-    def __init__(self, config, env, log_dir='/tmp/gym'):
+    def __init__(self, config, env, log_dir='/tmp/RC_test'):
         self.model = None
         self.target_model = None
         self.optimizer = None
-
+        self.device = config.device
         self.log_dir = log_dir
 
         self.rewards = []
@@ -51,11 +51,14 @@ class BaseAgent(object):
             fname_optim = optim_path
 
         if os.path.isfile(fname_model):
-            self.model.load_state_dict(torch.load(fname_model))
+            self.model.load_state_dict(torch.load(fname_model,
+                                                  map_location=self.device))
             self.target_model.load_state_dict(self.model.state_dict())
 
         if os.path.isfile(fname_optim):
-            self.optimizer.load_state_dict(torch.load(fname_optim))
+            self.optimizer.load_state_dict(torch.load(fname_optim,
+                                                      map_location=self.device)
+                                          )
 
     def save_replay(self, mem_path='./saved_agents/exp_replay_agent.dump'):
         pickle.dump(self.memory, open(mem_path, 'wb'))
@@ -71,11 +74,10 @@ class BaseAgent(object):
                 if param.requires_grad and 'sigma' in name:
                     sum_ += torch.sum(param.abs()).item()
                     count += np.prod(param.shape)
-
-# if count > 0:
-#     with open(os.path.join(self.log_dir, 'sig_param_mag.csv'), 'a') as f:
-#         writer = csv.writer(f)
-#         writer.writerow((tstep, sum_/count))
+        if count > 0:
+            with open(os.path.join(self.log_dir, 'sig_param_mag.csv'), 'a') as f:
+                writer = csv.writer(f)
+                writer.writerow((tstep, sum_/count))
 
     def save_td(self, td, tstep):
         with open(os.path.join(self.log_dir, 'td.csv'), 'a') as f:
@@ -97,10 +99,9 @@ class BaseAgent(object):
 
 class DuelingAgent(BaseAgent):
     def __init__(self, static_policy=False, env=None,
-                 config=None, log_dir='/tmp/gym'):
+                 config=None, log_dir='/tmp/RC_test'):
         super(DuelingAgent, self).__init__(
             config=config, env=env, log_dir=log_dir)
-        self.device = config.device
 
         self.noisy = config.USE_NOISY_NETS
         self.priority_replay = config.USE_PRIORITY_REPLAY
@@ -154,7 +155,7 @@ class DuelingAgent(BaseAgent):
     def append_to_replay(self, s, a, r, s_):
         self.nstep_buffer.append((s, a, r, s_))
 
-        if(len(self.nstep_buffer) < self.nsteps):
+        if len(self.nstep_buffer) < self.nsteps:
             return
 
         R = sum([self.nstep_buffer[i][2] * (self.gamma**i)
@@ -258,7 +259,7 @@ class DuelingAgent(BaseAgent):
         self.optimizer.step()
 
         self.update_target_model()
-        # self.save_td(loss.item(), frame)
+        self.save_td(loss.item(), frame)
         self.save_sigma_param_magnitudes(frame)
 
     def get_action(self, s, eps=0.1, train=True):  # faster

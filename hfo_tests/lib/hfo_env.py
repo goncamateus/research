@@ -3,6 +3,21 @@ import numpy as np
 from scipy.spatial import distance
 
 
+class ObservationSpace():
+    def __init__(self, env, rewards, shape=None):
+        self.state = env.getState()
+        self.rewards = rewards
+        self.nmr_out = 0
+        self.taken = 0
+        self.shape = self.state.shape if not shape else shape
+
+
+class ActionSpace():
+    def __init__(self, actions):
+        self.actions = actions
+        self.n = len(actions)
+
+
 class HFOEnv(hfo.HFOEnvironment):
     pitchHalfLength = 52.5
     pitchHalfWidth = 34
@@ -14,34 +29,29 @@ class HFOEnv(hfo.HFOEnvironment):
     max_R = np.sqrt(pitchHalfLength * pitchHalfLength +
                     pitchHalfWidth * pitchHalfWidth)
     stamina_max = 8000
+    choosed_mates = 2
+    choosed_ops = 2
 
     def __init__(self, actions, rewards,
-                 is_offensive=False, play_goalie=False):
+                 is_offensive=False, play_goalie=False, strict=False):
         super(HFOEnv, self).__init__()
         self.connectToServer(hfo.HIGH_LEVEL_FEATURE_SET, './formations-dt',
                              6000, 'localhost',
                              'base_left' if is_offensive else 'base_right',
                              play_goalie=play_goalie)
-
-        class ObservationSpace():
-            def __init__(self, env, rewards):
-                self.state = env.getState()
-                self.rewards = rewards
-                self.nmr_out = 0
-                self.taken = 0
-                self.shape = self.state.shape
-
-        class ActionSpace():
-            def __init__(self, actions):
-                self.actions = actions
-                self.n = len(actions)
-
-        self.observation_space = ObservationSpace(self, rewards)
+        if not strict:
+            self.observation_space = ObservationSpace(self, rewards)
+        else:
+            shape = 12 + 6 * self.choosed_mates + 3 * self.choosed_ops
+            shape = (shape,)
+            self.observation_space = ObservationSpace(self,
+                                                      rewards,
+                                                      shape=shape)
         self.action_space = ActionSpace(actions)
         self.num_teammates = self.getNumTeammates()
         self.num_opponents = self.getNumOpponents()
 
-    def step(self, action, is_offensive=False):
+    def step(self, action, is_offensive=False, strict=False):
         if isinstance(action, tuple):
             self.act(self.action_space.actions[action[0]], action[1])
             action = self.action_space.actions[action[0]]
@@ -50,12 +60,11 @@ class HFOEnv(hfo.HFOEnvironment):
             self.act(action)
         act = self.action_space.actions.index(action)
         status = super(HFOEnv, self).step()
-        print('ai', act)
         if status != hfo.IN_GAME:
             done = True
         else:
             done = False
-        next_state = self.get_state(is_offensive)
+        next_state = self.get_state(is_offensive, strict=strict)
         # -----------------------------
         if is_offensive:
             reward = self.get_reward_off(act, next_state, done, status)
@@ -63,8 +72,10 @@ class HFOEnv(hfo.HFOEnvironment):
             reward = self.get_reward_def(act, next_state, done, status)
         return next_state, reward, done, status
 
-    def get_state(self, is_offensive=False):
+    def get_state(self, is_offensive=False, strict=False):
         state = self.remake_state(self.getState(), is_offensive=is_offensive)
+        if strict:
+            state = self.strict_state(state)
         return state
 
     def get_reward_off(self, act, next_state, done, status):
@@ -181,19 +192,18 @@ class HFOEnv(hfo.HFOEnvironment):
         ball = (state[3], state[4])
         return distance.euclidean(agent, ball)
 
-    def strict_state(self, state,
-                     choosed_mates, choosed_ops,
-                     is_offensive=False):
+    def strict_state(self, state):
         num_mates = self.num_teammates
         new_state = state[:10].tolist()
-        for i in range(10, 10 + choosed_mates):
+        for i in range(10, 10 + self.choosed_mates):
             new_state.append(state[i])
-        for i in range(10 + num_mates, 10 + num_mates + choosed_mates):
+        for i in range(10 + num_mates, 10 + num_mates + self.choosed_mates):
             new_state.append(state[i])
-        for i in range(10 + 2 * num_mates, 10 + 2 * num_mates + choosed_mates):
+        for i in range(10 + 2 * num_mates,
+                       10 + 2 * num_mates + self.choosed_mates):
             new_state.append(state[i])
         index = 10 + 3 * num_mates
-        for i in range(choosed_mates):
+        for i in range(self.choosed_mates):
             new_state.append(state[index])
             index += 1
             new_state.append(state[index])
@@ -201,7 +211,7 @@ class HFOEnv(hfo.HFOEnvironment):
             new_state.append(state[index])
             index += 1
         index = 10 + 6 * num_mates
-        for i in range(choosed_ops):
+        for i in range(self.choosed_ops):
             new_state.append(state[index])
             index += 1
             new_state.append(state[index])

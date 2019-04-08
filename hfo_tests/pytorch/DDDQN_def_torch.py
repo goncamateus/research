@@ -81,7 +81,7 @@ class Model(DQN_Agent):
         if is_new_episode:
             # Clear our stacked_frams
             self.stacked_frames = deque([np.zeros(
-                self.env.observation_space.shape,
+                frame.shape,
                 dtype=np.int) for i in range(16)], maxlen=16)
 
             # Because we're in a new episode, copy the same frame 4x
@@ -104,10 +104,6 @@ class Model(DQN_Agent):
 
 def main():
     config = Config()
-
-    config.device = torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu")
-
     # epsilon variables
     config.epsilon_start = 1.0
     config.epsilon_final = 0.01
@@ -140,9 +136,14 @@ def main():
 
     actions = [hfo.MOVE, hfo.GO_TO_BALL]
     rewards = [700, 1000]
-    hfo_env = HFOEnv(actions, rewards)
+    hfo_env = HFOEnv(actions, rewards, strict=True)
+    if hfo_env.getUnum() != 2:
+        config.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        config.device = torch.device("cpu")
 
-    log_dir = "./logs_model"
+    log_dir = "/tmp/RC_test"
     try:
         os.makedirs(log_dir)
     except OSError:
@@ -163,10 +164,11 @@ def main():
 
     if os.path.isfile(mem_path):
         model.load_replay(mem_path=mem_path)
+        model.learn_start = 0
         print("Memory Loaded")
 
     frame_idx = 1
-    train = False
+    train = True
     gen_mem = False
 
     for episode in itertools.count():
@@ -175,7 +177,7 @@ def main():
         episode_rewards = []
         while status == hfo.IN_GAME:
             if done:
-                state = hfo_env.get_state()
+                state = hfo_env.get_state(strict=True)
                 frame = model.stack_frames(state, done)
             if train:
                 if gen_mem and frame_idx / 4 < config.EXP_REPLAY_SIZE:
@@ -189,12 +191,13 @@ def main():
                     epsilon = config.epsilon_by_frame(int(frame_idx / 4))
                     action = model.get_action(frame, epsilon, train=train)
             else:
-                action = model.get_action(frame, 1.0)
+                action = model.get_action(frame, 1.0, train=False)
 
             if hfo_env.get_ball_dist(state) > 20:
                 action = 0
 
-            next_state, reward, done, status = hfo_env.step(action)
+            next_state, reward, done, status = hfo_env.step(action,
+                                                            strict=True)
             episode_rewards.append(reward)
 
             if done:
@@ -215,11 +218,11 @@ def main():
 
             frame_idx += 1
             if train:
-                if int(frame_idx / 4) % 10000 == 0 and frame_idx > 1:
+                if int(frame_idx / 4) % 10000 == 0 and frame_idx > 5:
                     model.save_w(path_model=model_path,
                                  path_optim=optim_path)
                     print("Model Saved")
-            if frame_idx / 4 > config.LEARN_START + 100 and frame_idx > 1:
+            if frame_idx / 4 > config.LEARN_START + 100 and frame_idx > 5:
                 model.save_w(path_model=model_path, path_optim=optim_path)
                 print("Model Saved")
                 model.save_replay(mem_path=mem_path)
