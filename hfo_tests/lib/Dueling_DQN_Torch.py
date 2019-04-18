@@ -58,7 +58,7 @@ class BaseAgent(object):
         if os.path.isfile(fname_optim):
             self.optimizer.load_state_dict(torch.load(fname_optim,
                                                       map_location=self.device)
-                                          )
+                                           )
 
     def save_replay(self, mem_path='./saved_agents/exp_replay_agent.dump'):
         pickle.dump(self.memory, open(mem_path, 'wb'))
@@ -75,9 +75,10 @@ class BaseAgent(object):
                     sum_ += torch.sum(param.abs()).item()
                     count += np.prod(param.shape)
         if count > 0:
-            with open(os.path.join(self.log_dir, 'sig_param_mag.csv'), 'a') as f:
+            with open(os.path.join(self.log_dir,
+                                   'sig_param_mag.csv'), 'a') as f:
                 writer = csv.writer(f)
-                writer.writerow((tstep, sum_/count))
+                writer.writerow((tstep, sum_ / count))
 
     def save_td(self, td, tstep):
         with open(os.path.join(self.log_dir, 'td.csv'), 'a') as f:
@@ -262,10 +263,9 @@ class DuelingAgent(BaseAgent):
         self.save_td(loss.item(), frame)
         self.save_sigma_param_magnitudes(frame)
 
-    def get_action(self, s, eps=0.1, train=True):  # faster
+    def get_action(self, s, eps=0.1):  # faster
         with torch.no_grad():
-            if np.random.random() >= eps or self.static_policy or self.noisy\
-               or not train:
+            if np.random.random() >= eps or self.static_policy or self.noisy:
                 X = torch.tensor([s], device=self.device, dtype=torch.float)
                 self.model.sample_noise()
                 out = self.model(X)
@@ -275,7 +275,7 @@ class DuelingAgent(BaseAgent):
                 a = maxout.view(1, 1)
                 return a.item()
             else:
-                return np.random.randint(0, self.num_actions)
+                return False  # (np.random.randint(0, self.num_actions), False)
 
     def update_target_model(self):
         self.update_count += 1

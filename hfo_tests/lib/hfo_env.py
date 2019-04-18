@@ -10,6 +10,7 @@ class ObservationSpace():
         self.nmr_out = 0
         self.taken = 0
         self.shape = self.state.shape if not shape else shape
+        self.goals_taken = 0
 
 
 class ActionSpace():
@@ -29,8 +30,8 @@ class HFOEnv(hfo.HFOEnvironment):
     max_R = np.sqrt(pitchHalfLength * pitchHalfLength +
                     pitchHalfWidth * pitchHalfWidth)
     stamina_max = 8000
-    choosed_mates = 2
-    choosed_ops = 2
+    choosed_mates = 3
+    choosed_ops = 3
 
     def __init__(self, actions, rewards,
                  is_offensive=False, play_goalie=False, strict=False):
@@ -50,6 +51,9 @@ class HFOEnv(hfo.HFOEnvironment):
         self.action_space = ActionSpace(actions)
         self.num_teammates = self.getNumTeammates()
         self.num_opponents = self.getNumOpponents()
+        self.stamina_basis = super(HFOEnv, self).getState()[-1]
+        self.stamina_basis = self.unnormalize(
+            self.stamina_basis, 0, self.stamina_max)
 
     def step(self, action, is_offensive=False, strict=False):
         if isinstance(action, tuple):
@@ -85,24 +89,30 @@ class HFOEnv(hfo.HFOEnvironment):
     def get_reward_def(self, act, next_state, done, status):
         reward = 0
         if status == hfo.GOAL:
-            reward = -20000
-        elif not '-{}'.format(self.getUnum()) in self.statusToString(status):
-            reward = 0
+            reward = -200000
+            self.observation_space.goals_taken += 1
+            if self.observation_space.goals_taken % 5 == 0:
+                reward -= 1000000
+            if '-{}'.format(self.getUnum()) in self.statusToString(status):
+                reward -= 1000000
         elif 'OUT' in self.statusToString(status):
             self.observation_space.nmr_out += 1
-            reward = self.observation_space.rewards[act] / 2
-            if self.observation_space.nmr_out % 20\
-               and self.observation_space.nmr_out > 1:
+            reward = self.observation_space.rewards[act]
+            if self.observation_space.nmr_out % 5 == 0:
                 reward = reward * 10
         else:
             if done:
-                reward = self.observation_space.rewards[act]
-                if '-{}'.format(self.getUnum()) in self.statusToString(status):
-                    self.observation_space.taken += 1
-                    reward = self.observation_space.rewards[act] * 2
-                    if self.observation_space.taken % 5\
-                       and self.observation_space.taken > 1:
-                        reward = reward * 20
+                if not '-{}'.format(self.getUnum())\
+                        in self.statusToString(status):
+                    reward = 0
+                else:
+                    reward = self.observation_space.rewards[act]
+                    if '-{}'.format(self.getUnum())\
+                            in self.statusToString(status):
+                        self.observation_space.taken += 1
+                        reward = self.observation_space.rewards[act] * 5
+                        if self.observation_space.taken % 5 == 0:
+                            reward = reward * 1000
             else:
                 reward = self.observation_space.rewards[act]\
                     - next_state[3] * 3

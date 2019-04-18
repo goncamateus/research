@@ -1,13 +1,16 @@
 import glob
 import itertools
+import logging
 import math
 import os
+import pickle
 import sys
 from collections import deque  # Ordered collection with ends
 from pathlib import Path
 
 import hfo
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -115,9 +118,9 @@ def main():
     # misc agent variables
     config.GAMMA = 0.99
     config.LR = 1e-4
-    # memory
+    # memorynot test
     config.TARGET_NET_UPDATE_FREQ = 1000
-    config.EXP_REPLAY_SIZE = 1000000
+    config.EXP_REPLAY_SIZE = 100000
     config.BATCH_SIZE = 64
     config.PRIORITY_ALPHA = 0.6
     config.PRIORITY_BETA_START = 0.4
@@ -127,7 +130,7 @@ def main():
     config.SIGMA_INIT = 0.5
 
     # Learning control variables
-    config.LEARN_START = 1000000
+    config.LEARN_START = 100000
     config.MAX_FRAMES = 60000000
     config.UPDATE_FREQ = 1
 
@@ -137,11 +140,6 @@ def main():
     actions = [hfo.MOVE, hfo.GO_TO_BALL]
     rewards = [700, 1000]
     hfo_env = HFOEnv(actions, rewards, strict=True)
-    if hfo_env.getUnum() != 2:
-        config.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
-    else:
-        config.device = torch.device("cpu")
 
     log_dir = "/tmp/RC_test"
     try:
@@ -151,25 +149,43 @@ def main():
         for f in files:
             os.remove(f)
 
-    model = Model(env=hfo_env, config=config)
+    test = True
+    unum = hfo_env.getUnum()
+    config.device = torch.device(
+        "cuda" if torch.cuda.is_available() else "cpu")
+    if unum in [2, 3]:
+        config.device = torch.device("cpu")
 
-    model_path = './saved_agents/model_{}.dump'.format(hfo_env.getUnum())
-    optim_path = './saved_agents/optim_{}.dump'.format(hfo_env.getUnum())
-    mem_path = './saved_agents/exp_replay_agent_{}.dump'.format(
-        hfo_env.getUnum())
+    if "agent{}.log" in os.listdir('.'):
+        os.system('rm -f agent{}.log'.format(unum))
+
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s | %(levelname)s : %(message)s',
+                        handlers=[logging.FileHandler(
+                                  "agent{}.log".format(unum)),
+                                  logging.StreamHandler()])
+    model = Model(env=hfo_env, config=config, static_policy=test)
+
+    model_path = './saved_agents/model_{}.dump'.format(unum)
+    optim_path = './saved_agents/optim_{}.dump'.format(unum)
+    mem_path = './saved_agents/exp_replay_agent_{}.dump'.format(unum)
 
     if os.path.isfile(model_path) and os.path.isfile(optim_path):
         model.load_w(model_path=model_path, optim_path=optim_path)
-        print("Model Loaded")
+        logging.info("Model Loaded")
 
-    if os.path.isfile(mem_path):
-        model.load_replay(mem_path=mem_path)
-        model.learn_start = 0
-        print("Memory Loaded")
+    if not test:
+        if os.path.isfile(mem_path):
+            model.load_replay(mem_path=mem_path)
+            model.learn_start = 0
+            logging.info("Memory Loaded")
 
     frame_idx = 1
-    train = True
+
     gen_mem = False
+    if test:
+        states = list()
+        actions = list()
 
     for episode in itertools.count():
         status = hfo.IN_GAME
@@ -179,23 +195,27 @@ def main():
             if done:
                 state = hfo_env.get_state(strict=True)
                 frame = model.stack_frames(state, done)
-            if train:
-                if gen_mem and frame_idx / 4 < config.EXP_REPLAY_SIZE:
-                    action = np.random.randint(0, model.env.action_space.n)
-                else:
-                    if gen_mem:
-                        gen_mem = False
-                        frame_idx = 0
-                        model.learn_start = 0
-                        print('Start Learning at Episode', episode)
-                    epsilon = config.epsilon_by_frame(int(frame_idx / 4))
-                    action = model.get_action(frame, epsilon, train=train)
+            if gen_mem and frame_idx / 4 < config.EXP_REPLAY_SIZE:
+                action = 0
             else:
-                action = model.get_action(frame, 1.0, train=False)
+                if gen_mem:
+                    gen_mem = False
+                    frame_idx = 0
+                    model.learn_start = 0
+                    logging.info('Start Learning at Episode %s', episode)
+                    model.save_replay(mem_path=mem_path)
+                    logging.info("Memory Saved episode %s", episode)
+                epsilon = config.epsilon_by_frame(int(frame_idx / 4))
+                action = model.get_action(frame, epsilon)
+                if action is False and not test:
+                    action = 0
 
             if hfo_env.get_ball_dist(state) > 20:
                 action = 0
 
+            if test:
+                states.append(state)
+                actions.append(action)
             next_state, reward, done, status = hfo_env.step(action,
                                                             strict=True)
             episode_rewards.append(reward)
@@ -203,6 +223,7 @@ def main():
             if done:
                 # Get the total reward of the episode
                 total_reward = np.sum(episode_rewards)
+                logging.info('Episode %s reward %d', episode, total_reward)
                 model.finish_nstep()
                 model.reset_hx()
                 # We finished the episode
@@ -217,24 +238,32 @@ def main():
             state = next_state
 
             frame_idx += 1
-            if train:
-                if int(frame_idx / 4) % 10000 == 0 and frame_idx > 5:
-                    model.save_w(path_model=model_path,
-                                 path_optim=optim_path)
-                    print("Model Saved")
-            if frame_idx / 4 > config.LEARN_START + 100 and frame_idx > 5:
+            if frame_idx / 4 % 10000 == 0 and\
+               frame_idx / 4 % 5 == 0 and not test:
+                model.save_w(path_model=model_path,
+                             path_optim=optim_path)
+                logging.info("Model Saved episode %s", episode)
+                if frame_idx / 4 % config.EXP_REPLAY_SIZE == 0:
+                    model.save_replay(mem_path=mem_path)
+                    logging.info("Memory Saved")
+        # Quit if the server goes down
+        if status == hfo.SERVER_DOWN:
+            if not test:
                 model.save_w(path_model=model_path, path_optim=optim_path)
                 print("Model Saved")
                 model.save_replay(mem_path=mem_path)
                 print("Memory Saved")
-                hfo_env.act(hfo.QUIT)
-                exit()
-        # Quit if the server goes down
-        if status == hfo.SERVER_DOWN:
-            model.save_w(path_model=model_path, path_optim=optim_path)
-            print("Model Saved")
-            model.save_replay(mem_path=mem_path)
-            print("Memory Saved")
+            if test:
+                dict_list = list()
+                for i, state in enumerate(states):
+                    df_dict = {x: 0.0 for x in range(state.size + 1)}
+                    last = sorted(df_dict.keys())[-1]
+                    for j, x in enumerate(state):
+                        df_dict[j] = x
+                    df_dict[last] = actions[i]
+                    dict_list.append(df_dict)
+                df = pd.DataFrame(dict_list)
+                df.to_csv('svm_db_{}.csv'.format(unum))
             hfo_env.act(hfo.QUIT)
             exit()
 
