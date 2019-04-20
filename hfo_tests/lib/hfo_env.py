@@ -30,15 +30,15 @@ class HFOEnv(hfo.HFOEnvironment):
     max_R = np.sqrt(pitchHalfLength * pitchHalfLength +
                     pitchHalfWidth * pitchHalfWidth)
     stamina_max = 8000
-    choosed_mates = 11
-    choosed_ops = 10
+    choosed_mates = 8
+    choosed_ops = 8
 
     def __init__(self, actions, rewards,
                  is_offensive=False, play_goalie=False, strict=False):
         super(HFOEnv, self).__init__()
         self.connectToServer(hfo.HIGH_LEVEL_FEATURE_SET, './formations-dt',
                              6000, 'localhost',
-                             'base_left' if is_offensive else 'base_right',
+                             'base_left' if is_offensive else 'HELIOS_right',
                              play_goalie=play_goalie)
         if not strict:
             self.observation_space = ObservationSpace(self, rewards)
