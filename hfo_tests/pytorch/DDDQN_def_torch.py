@@ -149,21 +149,16 @@ def main():
         for f in files:
             os.remove(f)
 
-    test = True
+    test = False
     unum = hfo_env.getUnum()
     config.device = torch.device(
         "cuda" if torch.cuda.is_available() else "cpu")
-    if unum in [2, 3]:
-        config.device = torch.device("cpu")
-
-    if "agent{}.log" in os.listdir('.'):
-        os.system('rm -f agent{}.log'.format(unum))
 
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s | %(levelname)s : %(message)s',
                         handlers=[logging.FileHandler(
-                                  "agent{}.log".format(unum)),
-                                  logging.StreamHandler()])
+                            "agent{}.log".format(unum)),
+                            logging.StreamHandler()])
     model = Model(env=hfo_env, config=config, static_policy=test)
 
     model_path = './saved_agents/model_{}.dump'.format(unum)
@@ -182,7 +177,7 @@ def main():
 
     frame_idx = 1
 
-    gen_mem = False
+    gen_mem = True
     if test:
         states = list()
         actions = list()

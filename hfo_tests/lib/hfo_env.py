@@ -30,8 +30,8 @@ class HFOEnv(hfo.HFOEnvironment):
     max_R = np.sqrt(pitchHalfLength * pitchHalfLength +
                     pitchHalfWidth * pitchHalfWidth)
     stamina_max = 8000
-    choosed_mates = 3
-    choosed_ops = 3
+    choosed_mates = 11
+    choosed_ops = 10
 
     def __init__(self, actions, rewards,
                  is_offensive=False, play_goalie=False, strict=False):

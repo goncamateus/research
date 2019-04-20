@@ -275,7 +275,7 @@ class DuelingAgent(BaseAgent):
                 a = maxout.view(1, 1)
                 return a.item()
             else:
-                return False  # (np.random.randint(0, self.num_actions), False)
+                return np.random.randint(0, self.num_actions)
 
     def update_target_model(self):
         self.update_count += 1

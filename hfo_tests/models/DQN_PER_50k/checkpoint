@@ -1,2 +1,0 @@
-model_checkpoint_path: "DQN_PER_model_2_1vs1_def.ckpt"
-all_model_checkpoint_paths: "DQN_PER_model_2_1vs1_def.ckpt"
