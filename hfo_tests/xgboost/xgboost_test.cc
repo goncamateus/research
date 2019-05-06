@@ -185,6 +185,8 @@ int main(int argc, char **argv)
     // more information on feature sets.
     hfo.connectToServer(features, config_dir, port, server_addr,
                         team_name, goalie);
+    int num_mates = hfo.getNumTeammates();
+    int num_ops = hfo.getNumOpponents();
     std::vector<hfo::action_t> actions = {MOVE, GO_TO_BALL};
     int unum = hfo.getUnum();
 
@@ -202,13 +204,15 @@ int main(int argc, char **argv)
         {
             const State &hfo_state = hfo.getState();
             State state = hfo_state;
-            remake_state(state, hfo.getNumTeammates(), hfo.getNumOpponents(), false);
-            state = strict_state(state, hfo.getNumTeammates());
+            remake_state(state, num_mates, num_ops, false);
+            State remake = strict_state(state, num_mates);
             DMatrixHandle d_state;
-            float my_state[state.size()+1];
-            for (int i=0; i < state.size(); i++)
-                my_state[i] = state[i];
-            safe_xgboost(XGDMatrixCreateFromMat(my_state, 1, state.size(), -1, &d_state))
+            float my_state[remake.size()];
+            for (int i=0; i < remake.size(); i++)
+            {
+                my_state[i] = remake[i];
+            }
+            safe_xgboost(XGDMatrixCreateFromMat(my_state, 1, remake.size(), NAN, &d_state))
             bst_ulong out_len;
             const float *result;
             safe_xgboost(XGBoosterPredict(booster, d_state, 0, 0, &out_len, &result))
