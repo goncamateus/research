@@ -249,16 +249,17 @@ def main():
                 model.save_replay(mem_path=mem_path)
                 print("Memory Saved")
             if test:
-                dict_list = list()
-                for i, state in enumerate(states):
-                    df_dict = {x: 0.0 for x in range(state.size + 1)}
-                    last = sorted(df_dict.keys())[-1]
-                    for j, x in enumerate(state):
-                        df_dict[j] = x
-                    df_dict[last] = actions[i]
-                    dict_list.append(df_dict)
-                df = pd.DataFrame(dict_list)
-                df.to_csv('svm_db_{}.csv'.format(unum))
+                torch.save(model.model, 'model_{}.pt'.format(unum))
+                # dict_list = list()
+                # for i, state in enumerate(states):
+                #     df_dict = {x: 0.0 for x in range(state.size + 1)}
+                #     last = sorted(df_dict.keys())[-1]
+                #     for j, x in enumerate(state):
+                #         df_dict[j] = x
+                #     df_dict[last] = actions[i]
+                #     dict_list.append(df_dict)
+                # df = pd.DataFrame(dict_list)
+                # df.to_csv('svm_db_{}.csv'.format(unum))
             hfo_env.act(hfo.QUIT)
             exit()
 
